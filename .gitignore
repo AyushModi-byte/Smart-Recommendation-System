@@ -206,3 +206,4 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 yfcc15m_geotagged_only.csv
+usa_europe_geotagged.csv
