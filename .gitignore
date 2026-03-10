@@ -5,7 +5,11 @@ __pycache__/
 
 # C extensions
 *.so
-
+venv/
+embeddings/
+__pycache__/
+*.npy
+.ipynb_checkpoints/
 # Distribution / packaging
 .Python
 build/
