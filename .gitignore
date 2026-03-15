@@ -1,3 +1,4 @@
+poi_clusters/
 uid_values.npy
 uid_keys.npy
 context_embeddings/
