@@ -1,3 +1,6 @@
+uid_values.npy
+uid_keys.npy
+context_embeddings/
 test_image.jpg
 visual_embeddings.index
 venv/
