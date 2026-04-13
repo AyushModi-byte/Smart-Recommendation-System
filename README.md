@@ -141,7 +141,7 @@ If you use this work, please cite:
 ```
 @project{aurapath2026,
   title   = {AuraPath: Multi-Modal Semantic Trajectory Synthesis for Aesthetic-Driven POI Recommendation},
-  author  = {23DCS510},
+  authors  = {Ayush Modi , Anurag Yadav},
   year    = {2026}
 }
 ```
