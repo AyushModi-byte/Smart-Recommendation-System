@@ -130,7 +130,7 @@ demo_mood(3, top_k=5)  # 3 = Scenic Nature & Waterscapes
 
 ## 👤 Author
 
-**23DCS510** — B.Tech Computer Science  
+**Ayush Modi , Anurag Yadav ** — B.Tech Computer Science  
 *Smart Recommendation System Project*
 
 ---
