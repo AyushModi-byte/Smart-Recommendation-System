@@ -1,68 +1,39 @@
-# Smart-Recommendation-System
+# AuraPath
 
-# AuraPath 🗺️
-### Multi-Modal Semantic Trajectory Synthesis for Aesthetic-Driven POI Recommendation
+**Aesthetic-driven point-of-interest recommendation from geotagged photos.**
 
-> *Beyond "nearest coffee shop" — AuraPath recommends places that match your visual soul.*
+AuraPath learns what kind of places a person likes to photograph and recommends
+places they have not visited yet. It combines visual embeddings of Flickr photos,
+fuzzy "aesthetic" clusters of places, and (in v2) geography and popularity.
 
 [![Python](https://img.shields.io/badge/Python-3.10-blue)](https://python.org)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0-red)](https://pytorch.org)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.x-red)](https://pytorch.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
----
+## Status
 
-## 🧠 What is AuraPath?
-
-Traditional navigation systems recommend the **closest** or **most popular** locations. AuraPath goes deeper — it analyzes your **visual history** to extract your *Visual DNA*, combines it with your **psychological mood** and **real-world context**, and recommends highly specific aesthetic-driven locations like:
-
-> *"Minimalist Industrial Coffee Shop"* instead of just *"Coffee Shop"*
-
----
-
-## 🏗️ Architecture
-
-AuraPath is built on a **3-module pipeline**:
-
-### Module A — The Eyes (Multi-Level Visual Encoder)
-- Pre-trained **ResNet50** extracts 2048-dim visual embeddings
-- **MEAL Framework** + **Quintuplet Loss** fine-tunes embeddings in semantic space
-- **Self-Attention** mechanism filters high-quality place photos from junk
-
-### Module B — The Brain (Contextual Clustering Engine)
-- **ICA-FCM Hybrid** (Imperialist Competitive Algorithm + Fuzzy C-Means)
-- Dynamically discovers optimal K=6 aesthetic clusters
-- Assigns **fuzzy probabilities** to each POI (e.g. 60% Historic, 40% Relaxing)
-
-### Module C — The Decision Maker (Fusion & Prediction)
-- Concatenates visual + contextual embeddings into unified user/POI representations
-- **Neural Interaction Layer** with element-wise product captures cross-feature interactions
-- **Sigmoid** output predicts final visit probability for unexplored locations
-
----
-
-## 📊 Results
-
-| Metric | Score |
+| Part | State |
 |---|---|
-| AUC-ROC | **0.9978** |
-| Hit Rate@20 | **37.6%** |
-| NDCG@10 | **0.185** |
-| Recall@10 | **21.1%** |
-| Precision@10 | **5.5%** |
-| Val Accuracy | **85.8%** |
+| v1 pipeline (notebooks 01–12) | Complete. Kept as the historical record of the original experiments. |
+| v2 pipeline (`training/`) | Code complete, leakage-free protocol. Needs to be re-run on the new server. |
+| Web demo (`app/`) | Numpy inference core written. UI and hosting not built yet. |
 
----
+> **About the v1 numbers.** The metrics originally reported for v1 (AUC-ROC 0.998,
+> Hit Rate@20 37.6%) came from an evaluation that leaked test information and are
+> not a valid measure of the model. See [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
+> Results from the v2 protocol will be published here once the runs are repeated.
 
-## 🗂️ Dataset
+## How it works
 
-- **YFCC15M** (Yahoo Flickr Creative Commons 100M subset)
-- Filtered for geo-tagged media in **USA & Europe**
-- ~3.7M photos across **201,623 POIs** from **27,071 users**
-- After quality filtering: **767,210 photos** across **169,845 POIs**
-
----
-
-## 🎨 Discovered Aesthetic Clusters
+1. **Visual encoder.** A pre-trained ResNet50 gives a 2048-d embedding per photo.
+   A small projector trained with a quintuplet loss maps it to 256-d.
+2. **Places.** Photos are grouped into POIs by DBSCAN on coordinates
+   (201,623 POIs from 3.74M photos, USA and Europe, YFCC subset).
+3. **Aesthetic clusters.** Fuzzy C-Means over POI embeddings gives each place a
+   soft membership in six clusters (for example 60% historic, 40% scenic).
+4. **Ranking model.** A two-tower network with an interaction layer scores
+   (user, place) pairs. v2 adds distance, density and popularity features and is
+   trained with a sampled-softmax ranking loss.
 
 | Cluster | Label | POIs |
 |---|---|---|
@@ -73,75 +44,71 @@ AuraPath is built on a **3-module pipeline**:
 | 4 | Nightlife & Social Scenes | 33,361 |
 | 5 | Green Nature & Wildlife | 32,770 |
 
----
+## Repository layout
 
-## 📓 Notebooks
+```
+notebooks/   01–12: the original v1 experiments, with their outputs
+training/    v2 pipeline as runnable scripts (prepare, train, evaluate, export)
+app/         numpy-only inference used by the web demo
+scripts/     helpers for syncing with the GPU server
+docs/        data manifest, known issues, server workflow
+legacy/      the first demo attempt (v1 model), kept for reference
+brain/       data and model artifacts (not in git, see docs/DATA.md)
+runs/        one folder per experiment: config, history, test results
+```
 
-| # | Notebook | Description |
-|---|---|---|
-| 1 | NB1_Data_Acquisition | Download & setup YFCC15M dataset |
-| 2 | NB2_Cleaning_Filtering | Clean & filter geo-tagged USA/Europe data |
-| 3 | NB3_ResNet50_Embeddings | Extract 2048-dim visual embeddings |
-| 4 | NB4_Contextual_Embeddings | Generate 391-dim contextual embeddings |
-| 5 | NB5_DBSCAN_POI_Mapping | Assign POI IDs via DBSCAN clustering |
-| 6 | NB6_MEAL_Quintuplet_Loss | Fine-tune embeddings with Quintuplet Loss |
-| 7 | NB7_SelfAttention_Filtering | Filter quality place photos via Self-Attention |
-| 8 | NB8_ICA_FCM_Clustering | ICA-FCM hybrid clustering for aesthetic groups |
-| 9 | NB9_Fuzzy_POI_Labeling | Assign aesthetic labels to clusters |
-| 10 | NB10_Neural_Interaction | Train Neural Interaction Layer |
-| 11 | NB11_Evaluation | Full evaluation with Recall, NDCG, AUC-ROC |
-| 12 | NB12_Inference_Pipeline | End-to-end demo — recommend by user or mood |
-
----
-
-## ⚙️ Setup
+## Quick start (v2 pipeline)
 
 ```bash
-# Clone repo
-git clone https://github.com/yourusername/AuraPath.git
-cd AuraPath
-
-# Install dependencies
+git clone https://github.com/AyushModi-byte/Smart-Recommendation-System.git
+cd Smart-Recommendation-System
 pip install -r requirements.txt
+
+# 1. time-based split, train-only embeddings (uses all 3.7M photos)
+python training/00b_prepare_all_photos.py --brain brain --out data_v3
+
+# 2. train (a 2-minute sanity run first, then the real one)
+python training/01_train.py --data data_v3 --name smoke --smoke
+python training/01_train.py --data data_v3 --name v7 --feat-v 1
+
+# 3. final test-set evaluation against popularity / nearest / geo-popularity baselines
+python training/02_evaluate.py --data data_v3 --run v7
+
+# 4. optional: destination-mode evaluation, content ablation, demo bundle
+python training/03_destination_eval.py --data data_v3 --run v7 --radius 30
+python training/04_ablate_content.py   --data data_v3 --run v7
+python training/06_export_bundle.py    --data data_v3 --run v7 --brain brain --out bundle
 ```
 
----
+The data in `brain/` is not distributed with the repository. See
+[docs/DATA.md](docs/DATA.md) for what each file is and which ones each step needs.
 
-## 🚀 Quick Start
+## Evaluation protocol (v2)
 
-```python
-# Recommend by User ID
-demo_user("user_id_here", top_k=5)
+- Each user's visits are ordered by time. The last visit is the test target, the
+  one before it is validation, everything earlier is training.
+- User and place embeddings are built from training photos only.
+- The model ranks the target against **all** places, with no candidate pool.
+- Every result is reported next to three baselines: popularity, nearest place,
+  and most popular within 25 km.
 
-# Recommend by Mood/Aesthetic
-demo_mood(3, top_k=5)  # 3 = Scenic Nature & Waterscapes
+## Documentation
+
+- [docs/DATA.md](docs/DATA.md): data manifest and what depends on what
+- [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md): problems found in v1 and their status
+- [docs/DGX_WORKFLOW.md](docs/DGX_WORKFLOW.md): working between the laptop and the GPU server
+
+## Authors
+
+**Ayush Modi** and **Anurag Yadav**, B.Tech Computer Science.
+
 ```
-
----
-
-## 🖥️ Hardware
-
-| Node | Specs | Role |
-|---|---|---|
-| Local | Lenovo IdeaPad, AMD Ryzen 7 4800H, 8GB RAM | Data management |
-| DGX Server | 8× Tesla V100 32GB, multi-core CPU | Heavy compute |
-
----
-
-## 👤 Author
-
-**Ayush Modi , Anurag Yadav ** — B.Tech Computer Science  
-*Smart Recommendation System Project*
-
----
-
-## 📄 Citation
-
-If you use this work, please cite:
-```
-@project{aurapath2026,
-  title   = {AuraPath: Multi-Modal Semantic Trajectory Synthesis for Aesthetic-Driven POI Recommendation},
-  authors  = {Ayush Modi , Anurag Yadav},
-  year    = {2026}
+@misc{aurapath2026,
+  title  = {AuraPath: Aesthetic-Driven POI Recommendation from Geotagged Photos},
+  author = {Modi, Ayush and Yadav, Anurag},
+  year   = {2026}
 }
 ```
+
+Photos come from the YFCC100M dataset (Flickr, Creative Commons licences).
+Released under the [MIT License](LICENSE).

@@ -1,0 +1,2 @@
+# Serving is numpy-only on purpose (no torch) so it fits a free CPU host.
+numpy>=1.24

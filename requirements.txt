@@ -1,8 +1,18 @@
-numpy
-pandas
-torch
-scikit-learn
-matplotlib
+# Training / evaluation pipeline (training/*.py) and the notebooks.
+# Install torch separately first if the server needs a specific CUDA build:
+#   https://pytorch.org/get-started/locally/
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+scikit-learn>=1.3
+torch>=2.0
 tqdm
+
+# Notebooks only (feature extraction, plots)
+torchvision
+sentence-transformers
+matplotlib
+requests
+Pillow
 jupyter
 ipykernel
