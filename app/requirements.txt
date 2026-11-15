@@ -1,2 +1,4 @@
 # Serving is numpy-only on purpose (no torch) so it fits a free CPU host.
+# On Hugging Face Spaces, gradio itself is installed from sdk_version in README.md.
 numpy>=1.24
+plotly>=6.0

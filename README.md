@@ -16,7 +16,7 @@ fuzzy "aesthetic" clusters of places, and (in v2) geography and popularity.
 |---|---|
 | v1 pipeline (notebooks 01–12) | Complete. Kept as the historical record of the original experiments. |
 | v2 pipeline (`training/`) | Complete. Leakage-free protocol, results below. |
-| Web demo (`app/`) | Numpy inference core written. UI and hosting not built yet. |
+| Web demo (`app/`) | Gradio app, runs locally. Deployment steps in [docs/DEPLOY.md](docs/DEPLOY.md). |
 
 ## Results (v2, run `v7`)
 
@@ -34,6 +34,35 @@ Test set: 13,236 users, one held-out last visit each, ranked against all 169,845
 - **Local visits** (within 50 km of the user's history, 69% of the test set): HR@10 0.313 against 0.188 for the best baseline.
 - **Trips to a new area** (more than 50 km away, 31%): HR@10 0.032, below global popularity at 0.148. This is the main open weakness.
 - 21.5% of test visits go to places with no earlier photos; these cannot be recommended and are excluded.
+
+### When the destination is known
+
+The 4,156 trips to a new area, ranking only places within 30 km of the destination
+(about 400 candidates per trip). The blend weight was tuned on validation trips.
+
+| Method | HR@5 | HR@10 | HR@20 | NDCG@20 |
+|---|---|---|---|---|
+| **Popularity + AuraPath** | **0.594** | **0.692** | **0.777** | **0.549** |
+| Popularity in area | 0.572 | 0.663 | 0.751 | 0.533 |
+| Visual taste only | 0.087 | 0.142 | 0.213 | 0.089 |
+| Random in area | 0.054 | 0.095 | 0.160 | 0.063 |
+
+This assumes the user states where they are going. Popularity carries most of the
+result; personalisation adds about 4% on HR@10.
+
+### What the visual signal contributes
+
+Same model and test users (a 4,000-user sample), with the content inputs deliberately damaged:
+
+| Variant | HR@10 | NDCG@20 |
+|---|---|---|
+| Normal | 0.227 | 0.157 |
+| User taste shuffled between users | 0.203 | 0.144 |
+| Place content replaced by the global mean | 0.211 | 0.147 |
+| Both | 0.207 | 0.145 |
+
+The visual embeddings and aesthetic clusters account for roughly 8% of NDCG@20.
+The rest comes from geography and popularity.
 
 Per-run configs, training histories and full result tables are in `runs/`.
 
@@ -67,7 +96,7 @@ Per-run configs, training histories and full result tables are in `runs/`.
 ```
 notebooks/   01–12: the original v1 experiments, with their outputs
 training/    v2 pipeline as runnable scripts (prepare, train, evaluate, export)
-app/         numpy-only inference used by the web demo
+app/         the web demo (Gradio) and its numpy-only inference
 scripts/     helpers for syncing with the GPU server
 docs/        data manifest, known issues, server workflow
 legacy/      the first demo attempt (v1 model), kept for reference
@@ -115,6 +144,7 @@ The data in `brain/` is not distributed with the repository. See
 - [docs/DATA.md](docs/DATA.md): data manifest and what depends on what
 - [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md): problems found in v1 and their status
 - [docs/DGX_WORKFLOW.md](docs/DGX_WORKFLOW.md): working between the laptop and the GPU server
+- [docs/DEPLOY.md](docs/DEPLOY.md): running the demo locally and deploying it
 
 ## Authors
 

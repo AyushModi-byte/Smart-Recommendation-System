@@ -43,17 +43,17 @@
 ## Daily loop
 
 1. Change code on the laptop, commit, `git push`.
-2. On the server: `git pull`, then start the job inside `tmux` so it survives a dropped connection:
+2. On the server: `git pull`, then start the job with `nohup` so it survives a dropped
+   connection (this server has no `tmux`):
 
    ```
    ssh dgx
-   tmux new -s train
-   cd Smart-Recommendation-System && source .venv/bin/activate
+   cd btp/Smart-Recommendation-System && source ~/aura-env/bin/activate
    nvidia-smi                       # pick a free GPU
-   CUDA_VISIBLE_DEVICES=<n> python training/01_train.py --data data_v3 --name v7 --feat-v 1 2>&1 | tee runs/v7.log
+   CUDA_VISIBLE_DEVICES=<n> nohup python training/01_train.py --data data_v3 --name <run> > logs/<run>.log 2>&1 &
+   tail -f logs/<run>.log
    ```
 
-   Detach with `Ctrl-b d`, come back with `tmux attach -t train`.
 3. Bring results back to the laptop:
 
    ```

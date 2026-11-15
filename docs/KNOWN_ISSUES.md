@@ -31,4 +31,4 @@ Found in a full review of notebooks 01–12. "Fixed in v2" means the scripts in
 |---|---|---|
 | 13 | Notebooks hard-code paths from the old server (`/home/23dcs510/...`) and `CUDA_VISIBLE_DEVICES=2`, and mix working directories. They cannot be re-run top to bottom as they are. | By design: notebooks are a record, `training/` is the runnable pipeline |
 | 14 | Notebook 05 shows 166,850 POIs in one cell and 201,623 in the next (stale output). 201,623 is the number in the saved data. | Documented |
-| 15 | A content-only v2 model (no geography) scores NDCG@20 of about 0.003 on validation: the visual embeddings alone do not rank places. Nearly all of the v2 gain comes from geography and popularity features. | Open. Run `training/04_ablate_content.py` to quantify |
+| 15 | **The visual signal is a small part of the result.** A content-only v2 model scores NDCG@20 of about 0.003 on validation, and damaging the content inputs of the final model lowers NDCG@20 only from 0.157 to 0.145 (`runs/v7/ablation_content.json`). Geography and popularity carry the ranking. | Open |

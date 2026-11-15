@@ -4,7 +4,7 @@ rem Run from the repo root. Needs the "dgx" SSH alias (see docs\DGX_WORKFLOW.md)
 rem Nothing is deleted or changed locally.
 setlocal
 set REMOTE=dgx
-set RDIR=Smart-Recommendation-System/brain
+set RDIR=btp/Smart-Recommendation-System/brain
 
 ssh %REMOTE% "mkdir -p %RDIR%" || exit /b 1
 scp -r brain\ids %REMOTE%:%RDIR%/ || exit /b 1
