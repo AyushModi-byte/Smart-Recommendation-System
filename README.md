@@ -15,13 +15,31 @@ fuzzy "aesthetic" clusters of places, and (in v2) geography and popularity.
 | Part | State |
 |---|---|
 | v1 pipeline (notebooks 01–12) | Complete. Kept as the historical record of the original experiments. |
-| v2 pipeline (`training/`) | Code complete, leakage-free protocol. Needs to be re-run on the new server. |
+| v2 pipeline (`training/`) | Complete. Leakage-free protocol, results below. |
 | Web demo (`app/`) | Numpy inference core written. UI and hosting not built yet. |
+
+## Results (v2, run `v7`)
+
+Test set: 13,236 users, one held-out last visit each, ranked against all 169,845 places.
+
+| Method | HR@10 | HR@20 | NDCG@10 | NDCG@20 | MRR |
+|---|---|---|---|---|---|
+| **AuraPath v2** | **0.225** | **0.284** | **0.141** | **0.156** | **0.125** |
+| Popular within 25 km | 0.129 | 0.165 | 0.083 | 0.092 | 0.075 |
+| Popularity | 0.074 | 0.098 | 0.043 | 0.049 | 0.038 |
+| Nearest place | 0.058 | 0.093 | 0.029 | 0.038 | 0.027 |
+
+- HR@10 is 74% above the strongest baseline and three times global popularity.
+- NDCG@20 gain over the nearest-place baseline: 0.119, 95% CI [0.113, 0.123].
+- **Local visits** (within 50 km of the user's history, 69% of the test set): HR@10 0.313 against 0.188 for the best baseline.
+- **Trips to a new area** (more than 50 km away, 31%): HR@10 0.032, below global popularity at 0.148. This is the main open weakness.
+- 21.5% of test visits go to places with no earlier photos; these cannot be recommended and are excluded.
+
+Per-run configs, training histories and full result tables are in `runs/`.
 
 > **About the v1 numbers.** The metrics originally reported for v1 (AUC-ROC 0.998,
 > Hit Rate@20 37.6%) came from an evaluation that leaked test information and are
 > not a valid measure of the model. See [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
-> Results from the v2 protocol will be published here once the runs are repeated.
 
 ## How it works
 

@@ -50,3 +50,6 @@ BTP docs/
 # ---- local tooling notes ----
 CLAUDE.md
 .claude/
+
+# ---- throwaway sanity runs ----
+runs/smoke*/
