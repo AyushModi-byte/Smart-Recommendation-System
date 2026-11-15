@@ -5,22 +5,20 @@ Also VERIFIES that the numpy re-implementation ranks exactly like the trained to
   CUDA_VISIBLE_DEVICES=7 python training/06_export_bundle.py --data data_v3 --run v7 --brain brain --out bundle
 Outputs bundle/{weights.npz, pois.npz, users.npz, meta.json}
 """
-import argparse, json, os, shutil, sys, time
-from collections import Counter
+import argparse, json, os, sys, time
 import numpy as np
-import pandas as pd
 import torch
-from urllib.parse import unquote_plus
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, "..", "app"))
 from common import NIL, GeoCtx, score_all
 from aurapath_np import AuraNP, geo_feats
+from poi_names import build_names
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--data", default="data_v3"); ap.add_argument("--run", default="v7")
 ap.add_argument("--brain", default="brain"); ap.add_argument("--out", default="bundle")
-ap.add_argument("--n-users", type=int, default=300); ap.add_argument("--tag-photos", type=int, default=20)
+ap.add_argument("--n-users", type=int, default=300)
 a = ap.parse_args()
 t0 = time.time()
 os.makedirs(a.out, exist_ok=True)
@@ -44,39 +42,10 @@ sd = {k: v.numpy().astype(np.float32) for k, v in sd.items() if "num_batches_tra
 np.savez_compressed(f"{a.out}/weights.npz", **sd)
 
 print("[2/4] POI names + thumbnails from the CSV", flush=True)
-pm = pd.read_csv(f"{a.brain}/photo_poi_mapping.csv", usecols=["photoid", "poi_id"]).drop_duplicates("photoid")
-poi_idx = pd.Series(np.arange(n_pois), index=d["poi_ids"])
-pm = pm[pm["poi_id"].isin(poi_idx.index)]
-pm["p"] = poi_idx.loc[pm["poi_id"]].values
-photo_p = pd.Series(pm["p"].values, index=pm["photoid"].values)
-STOP = {"geotagged", "flickr", "iphone", "square", "squareformat", "instagramapp", "iphoneography", "uploaded", "photo", "photos",
-        "canon", "nikon", "sony", "usa", "europe", "2010", "2011", "2012", "2013", "2009", "2008", "2007", "unknown"}
-seen = np.zeros(n_pois, dtype=np.int64)
-urls = np.array([""] * n_pois, dtype=object)
-tags = [Counter() for _ in range(n_pois)]
-for ch in pd.read_csv(f"{a.brain}/usa_europe_geotagged.csv", usecols=["photoid", "downloadurl", "usertags"], chunksize=1_000_000,
-                      dtype={"photoid": "int64", "downloadurl": "string", "usertags": "string"}):
-    ch = ch[ch["photoid"].isin(photo_p.index)]
-    if not len(ch):
-        continue
-    ch = ch.assign(p=photo_p.loc[ch["photoid"]].values)
-    ch["k"] = ch.groupby("p").cumcount().values + seen[ch["p"].values]
-    np.add.at(seen, ch["p"].values, 1)
-    for p, k, url, tg in zip(ch["p"].values, ch["k"].values, ch["downloadurl"].values, ch["usertags"].values):
-        if k >= a.tag_photos:
-            continue
-        if k == 0 and isinstance(url, str):
-            urls[p] = unquote_plus(url)
-        if isinstance(tg, str):
-            for t in unquote_plus(tg).lower().split(","):
-                t = t.strip()
-                if len(t) >= 3 and ":" not in t and "=" not in t and t not in STOP:
-                    tags[p][t] += 1
-names = np.array([" · ".join(w.title() for w, _ in tags[p].most_common(2)) or f"Place {int(d['poi_ids'][p])}" for p in range(n_pois)])
+names, urls = build_names(a.brain, d["poi_ids"], lat.astype(np.float64), lon.astype(np.float64))
 np.savez_compressed(f"{a.out}/pois.npz", emb=d["poi_emb"].astype(np.float16), lat=lat, lon=lon, cnt=cnt.astype(np.float32),
                     cluster=d["poi_cluster"].astype(np.int8), no_clean=d["poi_no_clean"].astype(bool),
                     poi_ids=d["poi_ids"], name=names, url=urls.astype(str))
-print(f"    named {np.mean([len(c) > 0 for c in tags]):.0%} of POIs from tags, thumbnails for {np.mean(urls != ''):.0%}", flush=True)
 
 print("[3/4] demo users", flush=True)
 rng = np.random.RandomState(7)
@@ -90,7 +59,7 @@ for u in users:
     h = h_p[h_u == u]
     flat += h.tolist(); ptr.append(len(flat))
 np.savez_compressed(f"{a.out}/users.npz", user_emb=d["user_emb"][users].astype(np.float16), user_idx=users,
-                    user_ids=d["user_ids"][users].astype(str), hist=np.array(flat, dtype=np.int32), ptr=np.array(ptr, dtype=np.int64),
+                    hist=np.array(flat, dtype=np.int32), ptr=np.array(ptr, dtype=np.int64),
                     test_poi=te_p[pick].astype(np.int32))
 
 print("[4/4] verifying numpy == torch on demo users (full ranking over all POIs)", flush=True)

@@ -18,8 +18,13 @@ Copy it to the laptop (CMD, from the repo root):
 scp -r dgx:btp/Smart-Recommendation-System/bundle .
 ```
 
-`users.npz` contains real Flickr user ids. The app does not use them; remove the
-`user_ids` array before publishing the bundle anywhere public.
+The bundle contains no user ids; sample travellers are stored by index only.
+
+To refresh only the place names of an existing bundle (no GPU needed):
+
+```bash
+python training/poi_names.py --brain brain --bundle bundle
+```
 
 ## 2. Run locally
 
@@ -56,7 +61,7 @@ rebuild the bundle and repeat the second.
 
 ## Known limits of the demo
 
-- Place names are built from the two most common photo tags and are often generic ("Paris · France").
+- Place names are built from photo tags (`training/poi_names.py`). Popular places read well ("Eiffel Tower, Paris"); about a fifth of the rarely visited ones only get "Near <town>".
 - Some Flickr image links are dead; those cards show without a picture.
 - The mood mode is a heuristic (popularity plus cluster membership) and has no offline evaluation.
 - Free Spaces sleep after a period without visitors and take about a minute to wake.
