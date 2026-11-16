@@ -34,6 +34,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--min-pois", type=int, default=5)
     ap.add_argument("--csv", default=None)
+    ap.add_argument("--places", default="", help='"" = original places, "_v2" = files written by 00a_split_places.py')
     a = ap.parse_args()
     t0 = time.time()
     B, O = os.path.expanduser(a.brain), os.path.expanduser(a.out)
@@ -57,9 +58,15 @@ def main():
     assert len(all_pid) == vis.shape[0] == len(saved_poi), (len(all_pid), vis.shape, len(saved_poi))
     assert (all_poi == saved_poi).all(), "poi id order differs from the saved embedding order -> alignment broken"
     print(f"    aligned rows={len(all_pid):,} (poi ids match the saved file exactly)")
+    if a.places:                                   # same photos and row order, new place ids
+        pm2 = pd.read_csv(f"{B}/photo_poi_mapping{a.places}.csv", usecols=["photoid", "poi_id"]).drop_duplicates("photoid")
+        all_poi = pd.Series(pm2["poi_id"].values, index=pm2["photoid"].values).reindex(all_pid).values
+        assert not np.isnan(all_poi.astype(np.float64)).any(), "a photo has no place in the new mapping"
+        all_poi = all_poi.astype(np.int64)
+        print(f"    using places{a.places}: {len(np.unique(all_poi)):,} places")
 
-    mem_all = np.load(f"{B}/poi_fuzzy_memberships.npy").astype(np.float32)
-    mem_poi_ids = np.load(f"{B}/poi_cluster_ids.npy").astype(np.int64)
+    mem_all = np.load(f"{B}/poi_fuzzy_memberships{a.places}.npy").astype(np.float32)
+    mem_poi_ids = np.load(f"{B}/poi_cluster_ids{a.places}.npy").astype(np.int64)
     poi_row = pd.Series(np.arange(len(mem_poi_ids)), index=mem_poi_ids)
     keep = np.isin(all_poi, mem_poi_ids)
     rows_all = np.nonzero(keep)[0]

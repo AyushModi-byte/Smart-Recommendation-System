@@ -53,3 +53,6 @@ CLAUDE.md
 
 # ---- throwaway sanity runs ----
 runs/smoke*/
+
+# ---- compact copies built for upload to the server ----
+staging/
