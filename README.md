@@ -35,6 +35,29 @@ Test set: 13,236 users, one held-out last visit each, ranked against all 169,845
 - **Trips to a new area** (more than 50 km away, 31%): HR@10 0.032, below global popularity at 0.148. This is the main open weakness.
 - 21.5% of test visits go to places with no earlier photos; these cannot be recommended and are excluded.
 
+### After splitting oversized places (run `p1_split`)
+
+The original place clustering chained whole city centres into single "places": 828 of them
+held 27% of all photos, the largest 99,240. They were split into 8,547 places of at most
+250 m radius ([docs/ROADMAP.md](docs/ROADMAP.md), Phase 1). The task is now harder and more
+honest, so numbers are lower in absolute terms, but the baselines fall much further than the model.
+
+Test set: 14,955 users, ranked against all 177,564 places.
+
+| Method | HR@10 | HR@20 | NDCG@20 | MRR |
+|---|---|---|---|---|
+| **AuraPath v2** | **0.175** | **0.232** | **0.118** | **0.092** |
+| Popular within 25 km | 0.068 | 0.109 | 0.046 | 0.033 |
+| Nearest place | 0.058 | 0.100 | 0.039 | 0.027 |
+| Popularity | 0.010 | 0.018 | 0.007 | 0.005 |
+
+- HR@10 is now 2.6 times the strongest baseline (it was 1.7 times before the split).
+- Global popularity fell from 0.074 to 0.010: most of its earlier score came from the giant places.
+- With a known destination (3,753 new-area trips, 30 km radius): popularity + model 0.456 HR@10,
+  popularity alone 0.424, random 0.101. The earlier 0.69 / 0.66 were inflated the same way.
+
+The tables below are from the earlier run on the original places.
+
 ### When the destination is known
 
 The 4,156 trips to a new area, ranking only places within 30 km of the destination
