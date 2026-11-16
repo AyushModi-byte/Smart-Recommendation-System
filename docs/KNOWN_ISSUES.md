@@ -19,7 +19,7 @@ Found in a full review of notebooks 01–12. "Fixed in v2" means the scripts in
 |---|---|---|
 | 6 | **Notebook 07 "self-attention filtering" uses untrained networks.** `CrossModalProjector` and `SelfAttentionScorer` are randomly initialised and never trained. The effective filter is a keyword list with substring matching (`art` matches "party"). | Open. v2 bypasses the filter (`00b_prepare_all_photos.py`) |
 | 7 | The filter drops 80% of photos (3.74M to 767k). 81% of remaining POIs have 3 or fewer photos. | Bypassed in v2 |
-| 8 | The v1 model uses no geography and no collaborative signal. | Geography and popularity added in v2. Collaborative filtering still open |
+| 8 | The v1 model uses no geography and no collaborative signal. | Geography and popularity added in v2. Collaborative filtering tested twice (`v8` features, item-item blend): works alone (HR@10 0.083) but adds no significant gain on top of the model, so it is not included |
 | 9 | **DBSCAN chaining (notebook 05).** One POI holds 99,240 photos; 109 POIs hold 18.7% of all photos. `training/05_poi_diag.py` reports this. | Fixed: `training/00a_split_places.py` splits 828 oversized places into 8,547 (max radius 250 m, largest place 0.43% of photos). Results in `runs/p1_split` |
 | 10 | **Quintuplet training (notebook 06).** Random negatives (the semi-hard mining function is never called), margin 0.93 on unit vectors, train/val loss 1.30 vs 1.50. | Open |
 | 11 | **Notebook 08 "ICA" is a grid search.** All 16 values of K are evaluated before the loop starts. Silhouette is about 0.11; mean top membership is 0.63. Cluster labels were assigned by hand from 20 photos each. | Open |

@@ -95,6 +95,20 @@ proper collaborative model.
 roughly two per place, and more places after Phase 1). The gain may be small. Step 1 costs an
 hour and answers the question before more is built.
 
+**Result of step 1** (`training/07_collab_filter.py`, `runs/p1_split/collab_results.json`).
+14,955 test users on the split places:
+
+| Method | HR@10 | NDCG@20 |
+|---|---|---|
+| Collaborative filtering alone | 0.083 | 0.053 |
+| Model alone | 0.175 | 0.118 |
+| Model + collaborative filtering (weight tuned on validation) | 0.176 | 0.119 |
+
+The signal exists (alone it beats every non-learned baseline), but it adds nothing measurable
+to the model: NDCG@20 gain 0.001, 95% CI [-0.000, 0.002]. Together with run `v8` this is two
+null results, so the model already captures it through geography. **Decision: steps 2 and 3
+are not pursued; collaborative filtering is not added to the model.**
+
 ## Phase 3: context features (weather, temperature, traffic, mood)
 
 None of these exist in the dataset. Each needs a source, and two of them can only be proxies.
