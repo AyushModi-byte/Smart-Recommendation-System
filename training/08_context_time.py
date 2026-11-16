@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import NIL, GeoCtx, score_all, build_csr, summarize
+from common import NIL, GeoCtx, score_all, build_csr, summarize, RunData
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--data", default="data_v4")
@@ -33,7 +33,7 @@ DAY, SHIFT = 86400, 1 << 20
 dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 run_dir = os.path.join("runs", a.run)
 cfg = json.load(open(os.path.join(run_dir, "config.json")))
-d = np.load(os.path.join(a.data, "prepared.npz"), allow_pickle=True)
+d = RunData(a.data, run_dir)
 n_users, n_pois = len(d["user_ids"]), len(d["poi_ids"])
 U = torch.as_tensor(d["user_emb"], device=dev)
 P = torch.as_tensor(d["poi_emb"], device=dev)
@@ -50,7 +50,7 @@ T0 = int(min(tr_t.min(), va_t.min(), te_t.min()))
 yr = lambda t: 1970 + np.asarray(t) / (365.25 * DAY)
 print(f"visit years: train {yr(np.percentile(tr_t, [1, 50, 99])).round(1)}  test {yr(np.percentile(te_t, [1, 50, 99])).round(1)}", flush=True)
 
-model = NIL(h=cfg["hidden"], drop=(cfg["drop"], cfg["drop"] + 0.1, cfg["drop"]), geo_dim=cfg.get("geo_dim", 5)).to(dev)
+model = NIL(user_dim=U.shape[1], poi_dim=P.shape[1], h=cfg["hidden"], drop=(cfg["drop"], cfg["drop"] + 0.1, cfg["drop"]), geo_dim=cfg.get("geo_dim", 5)).to(dev)
 model.load_state_dict(torch.load(os.path.join(run_dir, "best.pth"), map_location=dev))
 model.eval()
 with torch.no_grad():
@@ -84,7 +84,7 @@ class Ctx:
             glob = cnt.sum(0) / cnt.sum()
             prior = glob[None]
             if a.prior == "cluster":                                    # per-cluster profile, itself smoothed to global
-                cc = np.zeros((6, nb)); np.add.at(cc, clu, cnt)
+                cc = np.zeros((int(clu.max()) + 1, nb)); np.add.at(cc, clu, cnt)
                 prior = ((cc + 50.0 * glob) / (cc.sum(1, keepdims=True) + 50.0))[clu]
             aff = np.log((cnt + a.smooth * prior) / (cnt.sum(1, keepdims=True) + a.smooth)) - np.log(glob)
             self.tabs.append(torch.as_tensor(aff, dtype=torch.float32, device=dev))

@@ -1,0 +1,230 @@
+{
+ "K": 4,
+ "m": 1.3,
+ "pca_dims": 32,
+ "table": [
+  {
+   "K": 4,
+   "xie_beni": 0.944928241753733,
+   "partition_coef": 0.703607439994812,
+   "silhouette": 0.17761103808879852,
+   "stability_ari": 1.0,
+   "ica_better_share": 0.0,
+   "ica_objective_gain": 0.0
+  },
+  {
+   "K": 5,
+   "xie_beni": 1.1466643642052021,
+   "partition_coef": 0.6558138926823934,
+   "silhouette": 0.15566153824329376,
+   "stability_ari": 1.0,
+   "ica_better_share": 0.3333333333333333,
+   "ica_objective_gain": -0.0019838918540875257
+  },
+  {
+   "K": 6,
+   "xie_beni": 1.1308239975069105,
+   "partition_coef": 0.6308491428693136,
+   "silhouette": 0.1515871286392212,
+   "stability_ari": 0.7194190801307968,
+   "ica_better_share": 0.3333333333333333,
+   "ica_objective_gain": 0.001800468563733705
+  },
+  {
+   "K": 7,
+   "xie_beni": 1.2130255958310145,
+   "partition_coef": 0.6127276420593262,
+   "silhouette": 0.15104404091835022,
+   "stability_ari": 1.0,
+   "ica_better_share": 0.6666666666666666,
+   "ica_objective_gain": 2.610119778918294e-08
+  },
+  {
+   "K": 8,
+   "xie_beni": 1.8551809135038335,
+   "partition_coef": 0.5780150691668192,
+   "silhouette": 0.14149168133735657,
+   "stability_ari": 0.999548858486552,
+   "ica_better_share": 0.0,
+   "ica_objective_gain": -2.735017825341926e-08
+  },
+  {
+   "K": 9,
+   "xie_beni": 1.3160188447492598,
+   "partition_coef": 0.5584305723508199,
+   "silhouette": 0.13313013315200806,
+   "stability_ari": 0.9958011037119069,
+   "ica_better_share": 0.3333333333333333,
+   "ica_objective_gain": -0.002396360024093397
+  },
+  {
+   "K": 10,
+   "xie_beni": 1.8480766180962345,
+   "partition_coef": 0.5293928186098734,
+   "silhouette": 0.12358371168375015,
+   "stability_ari": 0.6239988709130583,
+   "ica_better_share": 0.0,
+   "ica_objective_gain": -0.00034798754633777695
+  },
+  {
+   "K": 11,
+   "xie_beni": 1.8000576835616258,
+   "partition_coef": 0.5138437747955322,
+   "silhouette": 0.11880004405975342,
+   "stability_ari": 0.999930628425207,
+   "ica_better_share": 0.6666666666666666,
+   "ica_objective_gain": 0.0010288619756404695
+  },
+  {
+   "K": 12,
+   "xie_beni": 2.9321581398955776,
+   "partition_coef": 0.48793264230092365,
+   "silhouette": 0.1109190583229065,
+   "stability_ari": 0.9992798924220186,
+   "ica_better_share": 0.3333333333333333,
+   "ica_objective_gain": -4.682401342503134e-06
+  }
+ ],
+ "clusters": {
+  "0": {
+   "places": 33358,
+   "top_tags": [
+    "beach",
+    "sea",
+    "ocean",
+    "waves",
+    "sand",
+    "coast",
+    "lighthouse",
+    "pacific ocean",
+    "pacific",
+    "surf",
+    "dunes",
+    "sailing",
+    "wave",
+    "sunset"
+   ],
+   "examples": [
+    "Fisherman's Wharf, San Francisco",
+    "Goldengate, San Francisco",
+    "Hooverdam, Lake Mead",
+    "Dconstruct06, Brighton Pier",
+    "Goldengate, San Francisco",
+    "Gasworks Park, Seattle"
+   ],
+   "overlap_with_v1_clusters": [
+    0.11,
+    0.06,
+    0.04,
+    0.73,
+    0.02,
+    0.04
+   ]
+  },
+  "1": {
+   "places": 41281,
+   "top_tags": [
+    "zoo",
+    "insect",
+    "waterfall",
+    "forest",
+    "wildflower",
+    "flower",
+    "plantae",
+    "magnoliophyta",
+    "butterfly",
+    "habit",
+    "leaves",
+    "woods",
+    "nature",
+    "inflorescence"
+   ],
+   "examples": [
+    "St James's Park, London",
+    "California Academy Of Sciences, San Francisco",
+    "Central Park, Nyc",
+    "Conservatory Of Flowers, San Francisco",
+    "National Zoo, Washington Dc",
+    "Westminster, London"
+   ],
+   "overlap_with_v1_clusters": [
+    0.05,
+    0.0,
+    0.12,
+    0.08,
+    0.03,
+    0.72
+   ]
+  },
+  "2": {
+   "places": 48448,
+   "top_tags": [
+    "concert",
+    "music",
+    "live",
+    "food",
+    "band",
+    "live music",
+    "guitar",
+    "gig",
+    "festival",
+    "parade",
+    "dance",
+    "cake",
+    "costume",
+    "performance"
+   ],
+   "examples": [
+    "Time Square, Nyc",
+    "Piccadilly Circus, London",
+    "Timessquare, Nyc",
+    "Fifth Avenue, Nyc",
+    "Geary, San Francisco",
+    "Pike Place Market, Seattle"
+   ],
+   "overlap_with_v1_clusters": [
+    0.29,
+    0.09,
+    0.01,
+    0.0,
+    0.6,
+    0.01
+   ]
+  },
+  "3": {
+   "places": 47762,
+   "top_tags": [
+    "church",
+    "architecture",
+    "courthouse",
+    "cathedral",
+    "greater manchester",
+    "station",
+    "building",
+    "railway",
+    "statue",
+    "train",
+    "stained glass",
+    "brick",
+    "locomotive",
+    "rgl"
+   ],
+   "examples": [
+    "London Eye",
+    "Empire State Building, Nyc",
+    "Westminster, London",
+    "St Paul's Cathedral, London",
+    "Tower Bridge, London",
+    "British Museum, London"
+   ],
+   "overlap_with_v1_clusters": [
+    0.04,
+    0.54,
+    0.33,
+    0.01,
+    0.07,
+    0.01
+   ]
+  }
+ }
+}

@@ -47,7 +47,8 @@ d = np.load(os.path.join(a.data, "prepared.npz"), allow_pickle=True)
 n_users, n_pois = len(d["user_ids"]), len(d["poi_ids"])
 U = torch.as_tensor(d["user_emb"], device=dev)
 P = torch.as_tensor(d["poi_emb"], device=dev)
-VD = P.shape[1] - 6                                            # visual dims (256); last 6 = fuzzy membership
+MD = int(d["mem_dim"]) if "mem_dim" in d.files else 6           # fuzzy membership dims (last MD columns)
+VD = P.shape[1] - MD                                           # visual dims (256)
 poi_vis_sum = torch.as_tensor(d["poi_vis_sum"], device=dev)
 poi_cnt = torch.as_tensor(d["poi_cnt"], device=dev).float()
 train_vsum = torch.as_tensor(d["train_vsum"], device=dev)
@@ -110,7 +111,7 @@ def sample_negs(pos):
 
 
 # ---------- model ----------
-model = NIL(h=a.hidden, drop=(a.drop, a.drop + 0.1, a.drop), geo_dim=geo.n_feat).to(dev)
+model = NIL(user_dim=U.shape[1], poi_dim=P.shape[1], h=a.hidden, drop=(a.drop, a.drop + 0.1, a.drop), geo_dim=geo.n_feat).to(dev)
 opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=a.wd)
 sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=a.epochs, eta_min=1e-5)
 scaler = torch.cuda.amp.GradScaler(enabled=amp)

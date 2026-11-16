@@ -34,6 +34,8 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--min-pois", type=int, default=5)
     ap.add_argument("--csv", default=None)
+    ap.add_argument("--mem", default=None, help="suffix of the membership files (default: same as --places)")
+    ap.add_argument("--emb", default=None, help="photo embedding file, same row order as quintuplet_embeddings.npy")
     ap.add_argument("--places", default="", help='"" = original places, "_v2" = files written by 00a_split_places.py')
     a = ap.parse_args()
     t0 = time.time()
@@ -53,7 +55,7 @@ def main():
         m = pois != -1
         all_pid.append(ids[m]); all_poi.append(pois[m])
     all_pid, all_poi = np.concatenate(all_pid), np.concatenate(all_poi)
-    vis = np.load(f"{B}/quintuplet_embeddings.npy", mmap_mode="r")
+    vis = np.load(a.emb or f"{B}/quintuplet_embeddings.npy", mmap_mode="r")
     saved_poi = np.load(f"{B}/quintuplet_embeddings_poi_ids.npy")
     assert len(all_pid) == vis.shape[0] == len(saved_poi), (len(all_pid), vis.shape, len(saved_poi))
     assert (all_poi == saved_poi).all(), "poi id order differs from the saved embedding order -> alignment broken"
@@ -65,8 +67,9 @@ def main():
         all_poi = all_poi.astype(np.int64)
         print(f"    using places{a.places}: {len(np.unique(all_poi)):,} places")
 
-    mem_all = np.load(f"{B}/poi_fuzzy_memberships{a.places}.npy").astype(np.float32)
-    mem_poi_ids = np.load(f"{B}/poi_cluster_ids{a.places}.npy").astype(np.int64)
+    ms = a.places if a.mem is None else a.mem
+    mem_all = np.load(f"{B}/poi_fuzzy_memberships{ms}.npy").astype(np.float32)
+    mem_poi_ids = np.load(f"{B}/poi_cluster_ids{ms}.npy").astype(np.int64)
     poi_row = pd.Series(np.arange(len(mem_poi_ids)), index=mem_poi_ids)
     keep = np.isin(all_poi, mem_poi_ids)
     rows_all = np.nonzero(keep)[0]
@@ -157,7 +160,10 @@ def main():
     print("[7/7] writing outputs ...", flush=True)
     np.savez_compressed(f"{O}/prepared.npz", poi_vis_sum=poi_vis_sum, poi_cnt=p_cnt.astype(np.int32), g_content=g_content,
                         poi_no_clean=no_clean, user_ids=users.astype(str), poi_ids=poi_ids, user_emb=user_emb, poi_emb=poi_emb,
-                        poi_lat=poi_lat, poi_lon=poi_lon, poi_cluster=mem_all[poi_row.loc[poi_ids].values].argmax(1).astype(np.int8), **out)
+                        poi_lat=poi_lat, poi_lon=poi_lon, poi_cluster=mem_all[poi_row.loc[poi_ids].values].argmax(1).astype(np.int8), mem_dim=mem_all.shape[1], **out)
+    # photo-level table for attention pooling (01b_train_attn.py): which embedding row, place and user each photo is
+    np.savez_compressed(f"{O}/photos.npz", row=rows.astype(np.int64), p=p_idx.astype(np.int32),
+                        u=df["u"].fillna(-1).astype(np.int64).values.astype(np.int32), clean=~held, train=train_photo)
     stats = {"users": int(len(users)), "pois": int(P), "photos_used": int(len(df)), "train_visits": int(len(out["train_u"])),
              "val_visits": int(len(out["val_u"])), "test_visits": int(len(out["test_u"])),
              "pois_without_clean_photos": int(no_clean.sum()),

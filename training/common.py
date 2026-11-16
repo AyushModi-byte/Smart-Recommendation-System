@@ -249,3 +249,21 @@ def geopop_scorer(geo, pop, n_pois, radius_km=25.0):
         d = geo.dmin_all(ub, n_pois)
         return torch.where(d <= radius_km, 1e3 + pop_t[None] - 1e-3 * d, -d)
     return f
+
+
+class RunData:
+    """prepared.npz, with user_emb / poi_emb replaced by runs/<run>/pooled.npz when that run learned its own pooling."""
+
+    def __init__(self, data_dir, run_dir=None):
+        import os
+        self.npz = np.load(os.path.join(data_dir, "prepared.npz"), allow_pickle=True)
+        self.over = {}
+        path = os.path.join(run_dir, "pooled.npz") if run_dir else None
+        if path and os.path.exists(path):
+            z = np.load(path)
+            self.over = {k: z[k].astype(np.float32) for k in z.files}
+            print(f"using learned pooled embeddings from {path}", flush=True)
+        self.files = self.npz.files
+
+    def __getitem__(self, k):
+        return self.over[k] if k in self.over else self.npz[k]

@@ -55,11 +55,13 @@ def _title(t):
     return " ".join(w if (w.isupper() and len(w) <= 4) else w.capitalize() for w in t.split())
 
 
-def build_names(brain, poi_ids, lat, lon, min_users=3, loc_km=40.0, loc_min_pois=15, near_km=8.0, verbose=True):
-    """Returns (names, urls): two str arrays aligned with poi_ids."""
+def build_names(brain, poi_ids, lat, lon, min_users=3, loc_km=40.0, loc_min_pois=15, near_km=8.0, verbose=True,
+                places="", with_tags=False):
+    """Returns (names, urls): two str arrays aligned with poi_ids. places="_v2" reads photo_poi_mapping_v2.csv.
+    with_tags=True also returns the (p, tag, sup, idf) table: users per tag at each place."""
     t0 = time.time()
     n_pois = len(poi_ids)
-    pm = pd.read_csv(os.path.join(brain, "photo_poi_mapping.csv"), usecols=["photoid", "poi_id"]).drop_duplicates("photoid")
+    pm = pd.read_csv(os.path.join(brain, f"photo_poi_mapping{places}.csv"), usecols=["photoid", "poi_id"]).drop_duplicates("photoid")
     poi_idx = pd.Series(np.arange(n_pois), index=poi_ids)
     pm = pm[pm["poi_id"].isin(poi_idx.index)]
     photo_p = pd.Series(poi_idx.loc[pm["poi_id"]].values, index=pm["photoid"].values)
@@ -156,6 +158,8 @@ def build_names(brain, poi_ids, lat, lon, min_users=3, loc_km=40.0, loc_min_pois
         none = np.mean([n.startswith(("Near ", "Unnamed")) for n in names])
         print(f"    landmark + locality: {full:.0%}   one of the two: {1 - full - none:.0%}   'Near X' or unnamed: {none:.0%}   "
               f"thumbnails: {np.mean(urls != ''):.0%}   [{time.time() - t0:.0f}s]", flush=True)
+    if with_tags:
+        return names.astype(str), urls.astype(str), G[["p", "tag", "sup", "idf"]].reset_index(drop=True)
     return names.astype(str), urls.astype(str)
 
 
@@ -165,13 +169,14 @@ if __name__ == "__main__":
     ap.add_argument("--bundle", default="bundle")
     ap.add_argument("--min-users", type=int, default=3)
     ap.add_argument("--loc-km", type=float, default=40.0)
+    ap.add_argument("--places", default="", help='"" or "_v2"')
     a = ap.parse_args()
     path = os.path.join(a.bundle, "pois.npz")
     z = np.load(path)
     d = {k: z[k] for k in z.files}
     z.close()
     names, urls = build_names(a.brain, d["poi_ids"], d["lat"].astype(np.float64), d["lon"].astype(np.float64),
-                              min_users=a.min_users, loc_km=a.loc_km)
+                              min_users=a.min_users, loc_km=a.loc_km, places=a.places)
     d["name"] = names
     np.savez_compressed(path, **d)
     order = np.argsort(-d["cnt"])

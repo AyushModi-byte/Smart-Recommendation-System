@@ -11,7 +11,7 @@ import torch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, "..", "app"))
-from common import NIL, GeoCtx, score_all
+from common import NIL, GeoCtx, score_all, RunData
 from aurapath_np import AuraNP, geo_feats
 from poi_names import build_names
 
@@ -26,7 +26,7 @@ dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 run_dir = os.path.join("runs", a.run)
 cfg = json.load(open(os.path.join(run_dir, "config.json")))
 assert cfg.get("feat_v", 1) == 1, "the app implements the 5-feature (v7) model"
-d = np.load(os.path.join(a.data, "prepared.npz"), allow_pickle=True)
+d = RunData(a.data, run_dir)
 n_users, n_pois = len(d["user_ids"]), len(d["poi_ids"])
 tr_u, tr_p = d["train_u"].astype(np.int64), d["train_p"].astype(np.int64)
 va_u, va_p = d["val_u"].astype(np.int64), d["val_p"].astype(np.int64)
@@ -63,7 +63,7 @@ np.savez_compressed(f"{a.out}/users.npz", user_emb=d["user_emb"][users].astype(n
                     test_poi=te_p[pick].astype(np.int32))
 
 print("[4/4] verifying numpy == torch on demo users (full ranking over all POIs)", flush=True)
-model = NIL(h=cfg["hidden"], drop=(cfg["drop"], cfg["drop"] + 0.1, cfg["drop"]), geo_dim=5).to(dev)
+model = NIL(user_dim=d["user_emb"].shape[1], poi_dim=d["poi_emb"].shape[1], h=cfg["hidden"], drop=(cfg["drop"], cfg["drop"] + 0.1, cfg["drop"]), geo_dim=5).to(dev)
 model.load_state_dict(torch.load(os.path.join(run_dir, "best.pth"), map_location=dev)); model.eval()
 geo = GeoCtx(lat, lon, h_u, h_p, n_users, dev, M=cfg["geo_m"], pop=cnt)
 U = torch.as_tensor(d["user_emb"], device=dev); P = torch.as_tensor(d["poi_emb"], device=dev)

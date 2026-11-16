@@ -16,7 +16,7 @@ import scipy.sparse as sp
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import NIL, GeoCtx, score_all, build_csr, evaluate, summarize
+from common import NIL, GeoCtx, score_all, build_csr, evaluate, summarize, RunData
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--data", default="data_v4")
@@ -31,7 +31,7 @@ LAMS = [0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0]
 dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 run_dir = os.path.join("runs", a.run)
 cfg = json.load(open(os.path.join(run_dir, "config.json")))
-d = np.load(os.path.join(a.data, "prepared.npz"), allow_pickle=True)
+d = RunData(a.data, run_dir)
 n_users, n_pois = len(d["user_ids"]), len(d["poi_ids"])
 U = torch.as_tensor(d["user_emb"], device=dev)
 P = torch.as_tensor(d["poi_emb"], device=dev)
@@ -43,7 +43,7 @@ no_clean = torch.as_tensor(no_clean_np, device=dev)
 h_u = np.concatenate([tr_u, va_u]); h_p = np.concatenate([tr_p, va_p])
 o = np.argsort(h_u, kind="stable"); h_u, h_p = h_u[o], h_p[o]
 
-model = NIL(h=cfg["hidden"], drop=(cfg["drop"], cfg["drop"] + 0.1, cfg["drop"]), geo_dim=cfg.get("geo_dim", 5)).to(dev)
+model = NIL(user_dim=U.shape[1], poi_dim=P.shape[1], h=cfg["hidden"], drop=(cfg["drop"], cfg["drop"] + 0.1, cfg["drop"]), geo_dim=cfg.get("geo_dim", 5)).to(dev)
 model.load_state_dict(torch.load(os.path.join(run_dir, "best.pth"), map_location=dev))
 model.eval()
 with torch.no_grad():
