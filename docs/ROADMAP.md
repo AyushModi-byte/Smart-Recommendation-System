@@ -4,6 +4,25 @@ Covers every open item in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) plus the proposal
 features that are still missing (self-attention, weather / temperature / traffic /
 mood, real-time filtering, collaborative filtering, splitting giant places).
 
+## Outcome
+
+All phases are complete except deployment, which needs a hosting account. Numbers are in
+[RESULTS.md](RESULTS.md).
+
+| Phase | Outcome |
+|---|---|
+| 0 | Done. Compact ResNet features (15 GB) on the server; peak use 36 GB of the 50 GB quota |
+| 1 | **Adopted.** 828 oversized places split into 8,547; model lead over the best baseline rose from 1.7x to 2.6x |
+| 2 | Tested, not adopted. Collaborative filtering works alone but adds nothing to the model |
+| 3 | Tested, not adopted for ranking. Time, weather, temperature and crowd level add at most 1% NDCG@20. Mood profiles built for the demo |
+| 4 | Tested, not adopted. Trained attention pooling equals mean pooling; learned weights stay near uniform |
+| 5 | Tested, not adopted. New embeddings retrieve better (0.219 vs 0.106 for v1) but ranking does not improve |
+| 6 | Analysis done, not adopted for ranking. K = 4 is the supported choice; ICA adds nothing over k-means++ |
+| 7 | Demo has mood, scenery, live weather and time, and an avoid-crowds option. Not deployed yet |
+| 8 | Final model is `p1_split`. Proposal benchmarks: Precision/MAP met, MAE reduction 52% (target 60%) |
+
+The plan below is kept as written, with results added under Phases 2 and 3.
+
 ## Ground rules
 
 - **One change at a time, measured.** Each phase ends with the v2 protocol

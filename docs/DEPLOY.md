@@ -6,7 +6,7 @@ trained run. The bundle is about 88 MB and is not in git.
 ## 1. Build the bundle (on the GPU server)
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python training/06_export_bundle.py --data data_v3 --run v7 --brain brain --out bundle
+CUDA_VISIBLE_DEVICES=0 python training/06_export_bundle.py --data data_v4 --run p1_split --brain brain --out bundle --places _v2
 ```
 
 This writes `bundle/{weights.npz, pois.npz, users.npz, meta.json}` and checks that the
@@ -63,5 +63,7 @@ rebuild the bundle and repeat the second.
 
 - Place names are built from photo tags (`training/poi_names.py`). Popular places read well ("Eiffel Tower, Paris"); about a fifth of the rarely visited ones only get "Near <town>".
 - Some Flickr image links are dead; those cards show without a picture.
-- The mood mode is a heuristic (popularity plus cluster membership) and has no offline evaluation.
+- Mood, scenery, live conditions and avoid-crowds are explicit filters, not learned ranking signals: offline, time, weather and crowd level did not improve accuracy, and mood has no ground truth.
+- Live weather comes from Open-Meteo; if the call fails the app falls back to the manual controls.
+- The export packs mood and context profiles only if `10_mood_profile.py` and `weather_noaa.py` have been run.
 - Free Spaces sleep after a period without visitors and take about a minute to wake.

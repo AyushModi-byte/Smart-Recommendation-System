@@ -16,33 +16,11 @@ fuzzy "aesthetic" clusters of places, and (in v2) geography and popularity.
 |---|---|
 | v1 pipeline (notebooks 01–12) | Complete. Kept as the historical record of the original experiments. |
 | v2 pipeline (`training/`) | Complete. Leakage-free protocol, results below. |
-| Web demo (`app/`) | Gradio app, runs locally. Deployment steps in [docs/DEPLOY.md](docs/DEPLOY.md). |
+| Web demo (`app/`) | Gradio app with mood, live weather and crowd filters; runs locally. Deployment steps in [docs/DEPLOY.md](docs/DEPLOY.md). |
 
-## Results (v2, run `v7`)
+## Results
 
-Test set: 13,236 users, one held-out last visit each, ranked against all 169,845 places.
-
-| Method | HR@10 | HR@20 | NDCG@10 | NDCG@20 | MRR |
-|---|---|---|---|---|---|
-| **AuraPath v2** | **0.225** | **0.284** | **0.141** | **0.156** | **0.125** |
-| Popular within 25 km | 0.129 | 0.165 | 0.083 | 0.092 | 0.075 |
-| Popularity | 0.074 | 0.098 | 0.043 | 0.049 | 0.038 |
-| Nearest place | 0.058 | 0.093 | 0.029 | 0.038 | 0.027 |
-
-- HR@10 is 74% above the strongest baseline and three times global popularity.
-- NDCG@20 gain over the nearest-place baseline: 0.119, 95% CI [0.113, 0.123].
-- **Local visits** (within 50 km of the user's history, 69% of the test set): HR@10 0.313 against 0.188 for the best baseline.
-- **Trips to a new area** (more than 50 km away, 31%): HR@10 0.032, below global popularity at 0.148. This is the main open weakness.
-- 21.5% of test visits go to places with no earlier photos; these cannot be recommended and are excluded.
-
-### After splitting oversized places (run `p1_split`)
-
-The original place clustering chained whole city centres into single "places": 828 of them
-held 27% of all photos, the largest 99,240. They were split into 8,547 places of at most
-250 m radius ([docs/ROADMAP.md](docs/ROADMAP.md), Phase 1). The task is now harder and more
-honest, so numbers are lower in absolute terms, but the baselines fall much further than the model.
-
-Test set: 14,955 users, ranked against all 177,564 places.
+Test set: 14,955 users, one held-out last visit each, ranked against all 177,564 places.
 
 | Method | HR@10 | HR@20 | NDCG@20 | MRR |
 |---|---|---|---|---|
@@ -51,43 +29,17 @@ Test set: 14,955 users, ranked against all 177,564 places.
 | Nearest place | 0.058 | 0.100 | 0.039 | 0.027 |
 | Popularity | 0.010 | 0.018 | 0.007 | 0.005 |
 
-- HR@10 is now 2.6 times the strongest baseline (it was 1.7 times before the split).
-- Global popularity fell from 0.074 to 0.010: most of its earlier score came from the giant places.
-- With a known destination (3,753 new-area trips, 30 km radius): popularity + model 0.456 HR@10,
-  popularity alone 0.424, random 0.101. The earlier 0.69 / 0.66 were inflated the same way.
+- 2.6 times the strongest baseline. Precision@10 and MAP are far above the proposal's target of
+  23% over popularity.
+- With a stated destination (new-area trips, 30 km radius): HR@10 0.456 against 0.424 for popularity.
+- Without one, trips to a new area are not predictable (HR@10 0.005).
+- MAE of visit probability is 52% below popularity (the proposal aimed for 60%).
+- About 9% of the score comes from the visual embeddings and aesthetic clusters; geography and
+  popularity carry the rest.
 
-The tables below are from the earlier run on the original places.
-
-### When the destination is known
-
-The 4,156 trips to a new area, ranking only places within 30 km of the destination
-(about 400 candidates per trip). The blend weight was tuned on validation trips.
-
-| Method | HR@5 | HR@10 | HR@20 | NDCG@20 |
-|---|---|---|---|---|
-| **Popularity + AuraPath** | **0.594** | **0.692** | **0.777** | **0.549** |
-| Popularity in area | 0.572 | 0.663 | 0.751 | 0.533 |
-| Visual taste only | 0.087 | 0.142 | 0.213 | 0.089 |
-| Random in area | 0.054 | 0.095 | 0.160 | 0.063 |
-
-This assumes the user states where they are going. Popularity carries most of the
-result; personalisation adds about 4% on HR@10.
-
-### What the visual signal contributes
-
-Same model and test users (a 4,000-user sample), with the content inputs deliberately damaged:
-
-| Variant | HR@10 | NDCG@20 |
-|---|---|---|
-| Normal | 0.227 | 0.157 |
-| User taste shuffled between users | 0.203 | 0.144 |
-| Place content replaced by the global mean | 0.211 | 0.147 |
-| Both | 0.207 | 0.145 |
-
-The visual embeddings and aesthetic clusters account for roughly 8% of NDCG@20.
-The rest comes from geography and popularity.
-
-Per-run configs, training histories and full result tables are in `runs/`.
+Also tested and **not** adopted, because none improved ranking: collaborative filtering, time and
+weather context, crowd level, trained attention pooling, retrained quintuplet embeddings, and a
+re-derived clustering. Every experiment, with numbers, is in [docs/RESULTS.md](docs/RESULTS.md).
 
 > **About the v1 numbers.** The metrics originally reported for v1 (AUC-ROC 0.998,
 > Hit Rate@20 37.6%) came from an evaluation that leaked test information and are
@@ -97,8 +49,8 @@ Per-run configs, training histories and full result tables are in `runs/`.
 
 1. **Visual encoder.** A pre-trained ResNet50 gives a 2048-d embedding per photo.
    A small projector trained with a quintuplet loss maps it to 256-d.
-2. **Places.** Photos are grouped into POIs by DBSCAN on coordinates
-   (201,623 POIs from 3.74M photos, USA and Europe, YFCC subset).
+2. **Places.** Photos are grouped into places by DBSCAN on coordinates, and oversized
+   groups are split by density peaks (209,342 places from 3.74M photos, USA and Europe, YFCC subset).
 3. **Aesthetic clusters.** Fuzzy C-Means over POI embeddings gives each place a
    soft membership in six clusters (for example 60% historic, 40% scenic).
 4. **Ranking model.** A two-tower network with an interaction layer scores
@@ -134,21 +86,26 @@ git clone https://github.com/AyushModi-byte/Smart-Recommendation-System.git
 cd Smart-Recommendation-System
 pip install -r requirements.txt
 
-# 1. time-based split, train-only embeddings (uses all 3.7M photos)
-python training/00b_prepare_all_photos.py --brain brain --out data_v3
+# 1. split oversized places, then build the time-based split with train-only embeddings
+python training/00a_split_places.py --brain brain
+python training/00b_prepare_all_photos.py --brain brain --out data_v4 --places _v2
 
 # 2. train (a 2-minute sanity run first, then the real one)
-python training/01_train.py --data data_v3 --name smoke --smoke
-python training/01_train.py --data data_v3 --name v7 --feat-v 1
+python training/01_train.py --data data_v4 --name smoke --smoke
+python training/01_train.py --data data_v4 --name p1_split --feat-v 1
 
 # 3. final test-set evaluation against popularity / nearest / geo-popularity baselines
-python training/02_evaluate.py --data data_v3 --run v7
+python training/02_evaluate.py --data data_v4 --run p1_split
 
-# 4. optional: destination-mode evaluation, content ablation, demo bundle
-python training/03_destination_eval.py --data data_v3 --run v7 --radius 30
-python training/04_ablate_content.py   --data data_v3 --run v7
-python training/06_export_bundle.py    --data data_v3 --run v7 --brain brain --out bundle
+# 4. optional: destination mode, content ablation, MAE benchmark, demo bundle
+python training/03_destination_eval.py --data data_v4 --run p1_split --radius 30
+python training/04_ablate_content.py   --data data_v4 --run p1_split
+python training/13_mae_benchmark.py    --data data_v4 --run p1_split
+python training/06_export_bundle.py    --data data_v4 --run p1_split --brain brain --out bundle --places _v2
 ```
+
+Scripts `07`-`12` and `01b` are the experiments reported in [docs/RESULTS.md](docs/RESULTS.md)
+(collaborative filtering, context, mood, attention pooling, clustering, quintuplet retraining).
 
 The data in `brain/` is not distributed with the repository. See
 [docs/DATA.md](docs/DATA.md) for what each file is and which ones each step needs.
@@ -164,6 +121,7 @@ The data in `brain/` is not distributed with the repository. See
 
 ## Documentation
 
+- [docs/RESULTS.md](docs/RESULTS.md): every result and experiment, with numbers
 - [docs/DATA.md](docs/DATA.md): data manifest and what depends on what
 - [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md): problems found in v1 and their status
 - [docs/DGX_WORKFLOW.md](docs/DGX_WORKFLOW.md): working between the laptop and the GPU server

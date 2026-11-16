@@ -1,0 +1,30 @@
+{
+ "n_users": 14955,
+ "candidates_per_user": 100,
+ "temperature": 0.75,
+ "methods": {
+  "AuraPath": {
+   "mae": 0.008860164321959019,
+   "mean_p_target": 0.5569918751716614,
+   "top1": 0.6657973921765296
+  },
+  "Popularity": {
+   "mae": 0.018402215093374252,
+   "mean_p_target": 0.07988893985748291,
+   "top1": 0.24814443329989969
+  },
+  "Popular within 25 km": {
+   "mae": 0.010669311508536339,
+   "mean_p_target": 0.46653440594673157,
+   "top1": 0.6225342694750919
+  },
+  "Uniform": {
+   "mae": 0.0197999719530344,
+   "mean_p_target": 0.009999998845160007,
+   "top1": 1.0
+  }
+ },
+ "mae_reduction_vs_popularity": 0.5185272926654827,
+ "mae_reduction_vs_popular_within_25_km": 0.1695655043092379,
+ "mae_reduction_vs_uniform": 0.5525163195697773
+}
