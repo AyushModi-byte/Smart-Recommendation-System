@@ -14,11 +14,14 @@ sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, "..", "app"))
 from common import NIL, GeoCtx, score_all, RunData
 from aurapath_np import AuraNP, geo_feats
 from poi_names import build_names
+from context_tables import build as build_context
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--data", default="data_v3"); ap.add_argument("--run", default="v7")
 ap.add_argument("--brain", default="brain"); ap.add_argument("--out", default="bundle")
 ap.add_argument("--n-users", type=int, default=300)
+ap.add_argument("--places", default="", help='"" or "_v2": which place mapping the data was prepared with')
+ap.add_argument("--weather", default="brain/weather/grid.npz")
 a = ap.parse_args()
 t0 = time.time()
 os.makedirs(a.out, exist_ok=True)
@@ -42,10 +45,23 @@ sd = {k: v.numpy().astype(np.float32) for k, v in sd.items() if "num_batches_tra
 np.savez_compressed(f"{a.out}/weights.npz", **sd)
 
 print("[2/4] POI names + thumbnails from the CSV", flush=True)
-names, urls = build_names(a.brain, d["poi_ids"], lat.astype(np.float64), lon.astype(np.float64))
+cached = f"{a.brain}/poi_names{a.places}.npz"
+if os.path.exists(cached) and np.array_equal(np.load(cached)["poi_ids"], d["poi_ids"]):
+    names, urls = np.load(cached)["name"], np.load(cached)["url"]
+else:
+    names, urls = build_names(a.brain, d["poi_ids"], lat.astype(np.float64), lon.astype(np.float64), places=a.places)
+extra, moods = {}, []
+mood_path = f"{a.brain}/poi_mood{a.places}.npz"
+if os.path.exists(mood_path) and np.array_equal(np.load(mood_path)["poi_ids"], d["poi_ids"]):
+    mz = np.load(mood_path)
+    extra["mood"], moods = mz["score"].astype(np.float16), [str(x) for x in mz["moods"]]
+h_ts = np.concatenate([d["train_ts"], d["val_ts"]]).astype(np.int64)[o]
+ctx = build_context(h_p, h_ts, lat, lon, d["poi_cluster"].astype(np.int64), a.weather if os.path.exists(a.weather) else None)
+extra.update({k: v.astype(np.float16) for k, v in ctx.items()})
+print(f"    moods: {moods or 'none'}   context tables: {sorted(ctx)}", flush=True)
 np.savez_compressed(f"{a.out}/pois.npz", emb=d["poi_emb"].astype(np.float16), lat=lat, lon=lon, cnt=cnt.astype(np.float32),
                     cluster=d["poi_cluster"].astype(np.int8), no_clean=d["poi_no_clean"].astype(bool),
-                    poi_ids=d["poi_ids"], name=names, url=urls.astype(str))
+                    poi_ids=d["poi_ids"], name=names, url=urls.astype(str), **extra)
 
 print("[3/4] demo users", flush=True)
 rng = np.random.RandomState(7)
@@ -84,7 +100,10 @@ for u in users[:8]:
 print(f"    top-20 overlap numpy vs torch: {np.mean(same):.3f} (1.000 = identical); max |logit diff| {max(maxdiff):.4f}")
 assert np.mean(same) >= 0.95, "numpy export does not reproduce the trained model"
 
-meta = {"run": a.run, "config": {k: cfg[k] for k in ["hidden", "drop", "geo_m", "feat_v"] if k in cfg}, "pop_norm": pop_norm, "n_pois": n_pois,
+MD = int(d["mem_dim"]) if "mem_dim" in d.files else 6
+lab_path = f"{a.brain}/cluster_label_map.json" if MD == 6 else f"{a.brain}/cluster_labels_{MD}.json"
+labels = [v["label"] for _, v in sorted(json.load(open(lab_path)).items(), key=lambda kv: int(kv[0]))] if os.path.exists(lab_path) else [f"Cluster {i}" for i in range(MD)]
+meta = {"mem_dim": MD, "clusters": labels, "moods": moods, "run": a.run, "config": {k: cfg[k] for k in ["hidden", "drop", "geo_m", "feat_v"] if k in cfg}, "pop_norm": pop_norm, "n_pois": n_pois,
         "n_users_total": n_users, "n_demo_users": int(len(users)), "numpy_vs_torch_top20_overlap": float(np.mean(same)),
         "val_baselines": cfg.get("val_baselines"), "best_val_ndcg20": cfg.get("best_val_ndcg20")}
 for f in ["test_results.json", "destination_results.json", "ablation_content.json"]:

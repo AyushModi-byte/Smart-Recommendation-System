@@ -5,9 +5,12 @@ Run locally from the repo root:   python app/app.py
 The bundle (weights.npz, pois.npz, users.npz, meta.json) is read from
 $AURAPATH_BUNDLE, ./bundle next to this file, or ../bundle.
 """
+import datetime as dt
 import html
 import json
 import os
+import urllib.parse
+import urllib.request
 
 import gradio as gr
 import numpy as np
@@ -16,8 +19,6 @@ import plotly.graph_objects as go
 from aurapath_np import AuraNP, geo_feats, haversine_km
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CLUSTERS = ["Live Events & Recreation", "Urban & Street Architecture", "Historic & Rural Heritage",
-            "Scenic Nature & Waterscapes", "Nightlife & Social Scenes", "Green Nature & Wildlife"]
 CITIES = {
     "London": (51.5074, -0.1278), "Paris": (48.8566, 2.3522), "Rome": (41.9028, 12.4964),
     "Barcelona": (41.3851, 2.1734), "Amsterdam": (52.3676, 4.9041), "Berlin": (52.52, 13.405),
@@ -33,6 +34,10 @@ CITIES = {
 }
 CUSTOM = "Custom coordinates"
 MODE_MOOD, MODE_TRAV, MODE_HOME = "Pick a mood", "Sample traveller, at this destination", "Sample traveller, near places they know"
+ANY, LIVE = "Any", "Live"
+TOD = ["Night", "Morning", "Afternoon", "Evening"]
+WEATHER = ["Dry", "Rain"]
+TEMP = ["Cold (under 5 °C)", "Cool (5–15 °C)", "Mild (15–25 °C)", "Hot (over 25 °C)"]
 
 
 def _bundle_dir():
@@ -52,8 +57,13 @@ LAT, LON, CNT = _p["lat"].astype(np.float64), _p["lon"].astype(np.float64), _p["
 CLUSTER, VALID = _p["cluster"].astype(np.int64), ~_p["no_clean"]
 NAMES = _p["name"].tolist()
 URLS = [u.replace("http://", "https://", 1) for u in _p["url"].tolist()]
+CLUSTERS = META.get("clusters") or ["Live Events & Recreation", "Urban & Street Architecture", "Historic & Rural Heritage",
+                                    "Scenic Nature & Waterscapes", "Nightlife & Social Scenes", "Green Nature & Wildlife"]
+MEM = EMB[:, -len(CLUSTERS):]                      # fuzzy cluster memberships
+MOODS = META.get("moods") or []
+MOOD = _p["mood"].astype(np.float32) if "mood" in _p.files and MOODS else None
+CTX = {k: _p[k].astype(np.float32) for k in _p.files if k.startswith("aff_") or k == "crowd"}
 del _p
-MEM = EMB[:, -6:]                                  # fuzzy cluster memberships
 PT = NET.tower(EMB, "poi_tower")                   # (P, h) once at start-up
 LOGPOP = np.log1p(CNT)
 POP_NORM = float(META["pop_norm"])
@@ -61,8 +71,7 @@ GEO_M = int(META["config"].get("geo_m", 30))
 _u = np.load(os.path.join(B, "users.npz"))
 U_EMB, U_HIST, U_PTR = _u["user_emb"].astype(np.float32), _u["hist"].astype(np.int64), _u["ptr"]
 del _u
-N_USERS = len(U_EMB)
-TRAVELLERS = [f"Traveller {i + 1:03d}" for i in range(N_USERS)]
+TRAVELLERS = [f"Traveller {i + 1:03d}" for i in range(len(U_EMB))]
 
 
 def _z(x):
@@ -74,28 +83,70 @@ def _history(ui):
 
 
 def _model_scores(ui, cand, chunk=32768):
-    hist = _history(ui)
-    ref = hist[::-1][:GEO_M]                       # most recent first
+    ref = _history(ui)[::-1][:GEO_M]               # most recent first
     ut = NET.tower(U_EMB[ui][None], "user_tower")
-    out = []
-    for s in range(0, len(cand), chunk):
-        c = cand[s:s + chunk]
-        out.append(NET.head(ut, PT[c], geo_feats(ref, c, LAT, LON, CNT, POP_NORM)))
-    return np.concatenate(out)
+    return np.concatenate([NET.head(ut, PT[cand[s:s + chunk]], geo_feats(ref, cand[s:s + chunk], LAT, LON, CNT, POP_NORM))
+                           for s in range(0, len(cand), chunk)])
 
 
 def _taste_summary(ui):
     hist = _history(ui)
-    share = np.bincount(CLUSTER[hist], minlength=6) / max(len(hist), 1)
-    top = np.argsort(-share)[:3]
-    parts = ", ".join(f"{CLUSTERS[i]} ({share[i]:.0%})" for i in top if share[i] > 0)
+    share = np.bincount(CLUSTER[hist], minlength=len(CLUSTERS)) / max(len(hist), 1)
+    parts = ", ".join(f"{CLUSTERS[i]} ({share[i]:.0%})" for i in np.argsort(-share)[:3] if share[i] > 0)
     return f"**{TRAVELLERS[ui]}** has photographed {len(hist)} places. Mostly: {parts}."
 
 
-def recommend(mode, city, lat, lon, radius, mood, traveller, weight, top_k):
+def live_conditions(lat, lon):
+    """Current weather and local time at a location (Open-Meteo, no key). Returns a dict or None."""
+    url = "https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode(
+        {"latitude": round(float(lat), 3), "longitude": round(float(lon), 3),
+         "current": "temperature_2m,precipitation,is_day", "timezone": "auto"})
+    try:
+        with urllib.request.urlopen(url, timeout=5) as r:
+            cur = json.loads(r.read().decode("utf-8"))["current"]
+        t = dt.datetime.fromisoformat(cur["time"])
+        return {"tod": t.hour // 6, "weekend": int(t.weekday() >= 5), "season": ((t.month % 12) // 3), "daylight": int(cur["is_day"]),
+                "rain": int(float(cur["precipitation"]) > 0.0), "temp": int(np.digitize(float(cur["temperature_2m"]), [5.0, 15.0, 25.0])),
+                "text": f"{cur['temperature_2m']:.0f} °C, {'raining' if float(cur['precipitation']) > 0 else 'dry'}, "
+                        f"{TOD[t.hour // 6].lower()} ({t:%H:%M} local time)"}
+    except Exception:
+        return None
+
+
+def _context(centre, use_live, tod, weather, temp):
+    """-> (bucket dict, description). Manual choices override the live values."""
+    cond, text = {}, []
+    live = live_conditions(*centre) if use_live else None
+    if live:
+        cond = {k: live[k] for k in ("tod", "weekend", "season", "daylight", "rain", "temp")}
+        text.append("Live conditions: " + live["text"])
+    elif use_live:
+        text.append("Live conditions unavailable right now")
+    if tod in TOD:
+        cond["tod"] = TOD.index(tod); cond.pop("daylight", None)
+    if weather in WEATHER:
+        cond["rain"] = WEATHER.index(weather)
+    if temp in TEMP:
+        cond["temp"] = TEMP.index(temp)
+    manual = [x for x in (tod, weather, temp) if x != LIVE]
+    if manual:
+        text.append("Set by you: " + ", ".join(manual))
+    return cond, ". ".join(text)
+
+
+def _context_score(cand, cond):
+    sc = np.zeros(len(cand), dtype=np.float32)
+    for k, b in cond.items():
+        tab = CTX.get(f"aff_{k}")
+        if tab is not None:
+            sc += tab[cand, int(b)]
+    return sc
+
+
+def recommend(mode, city, lat, lon, radius, mood, scenery, traveller, weight, use_live, tod, weather, temp, ctx_weight, avoid_crowds, top_k):
     top_k = int(top_k)
     ui = TRAVELLERS.index(traveller) if traveller in TRAVELLERS else 0
-    note = ""
+    notes = []
     if mode == MODE_HOME:
         hist = _history(ui)
         keep = VALID.copy()
@@ -108,7 +159,7 @@ def recommend(mode, city, lat, lon, radius, mood, traveller, weight, top_k):
         cand = np.nonzero(keep)[0]
         score = _model_scores(ui, cand)
         centre = (float(LAT[hist[-1]]), float(LON[hist[-1]]))
-        note = _taste_summary(ui) + " Ranked by the model over all places, excluding ones already visited."
+        notes.append(_taste_summary(ui) + " Ranked by the model over all places, excluding ones already visited.")
     else:
         if city != CUSTOM:
             lat, lon = CITIES[city]
@@ -124,18 +175,35 @@ def recommend(mode, city, lat, lon, radius, mood, traveller, weight, top_k):
         cand = np.nonzero(keep)[0]
         if len(cand) < 3:
             return f"<p>Only {len(cand)} known places within {radius:.0f} km. Try a larger radius.</p>", None, ""
-        zp = _z(LOGPOP[cand])
+        score = _z(LOGPOP[cand])
         if mode == MODE_TRAV:
-            score = zp + float(weight) * _z(_model_scores(ui, cand))
-            note = _taste_summary(ui) + f" Ranking {len(cand):,} places within {radius:.0f} km."
+            score = score + float(weight) * _z(_model_scores(ui, cand))
+            notes.append(_taste_summary(ui) + f" Ranking {len(cand):,} places within {radius:.0f} km.")
         else:
-            ci = CLUSTERS.index(mood)
-            score = zp + float(weight) * _z(MEM[cand, ci])
-            note = f"Ranking {len(cand):,} places within {radius:.0f} km by popularity and how strongly they match **{mood}**."
-    order = np.argsort(-score)[:top_k]
-    picks = cand[order]
+            what = []
+            if MOOD is not None and mood in MOODS:
+                score = score + float(weight) * _z(MOOD[cand, MOODS.index(mood)]); what.append(f"the mood **{mood}**")
+            if scenery in CLUSTERS:
+                score = score + float(weight) * _z(MEM[cand, CLUSTERS.index(scenery)]); what.append(f"**{scenery}**")
+            notes.append(f"Ranking {len(cand):,} places within {radius:.0f} km by popularity" + (" and " + " and ".join(what) if what else "") + ".")
+        cond, text = _context(centre, use_live, tod, weather, temp)
+        if cond and float(ctx_weight) > 0:
+            score = score + float(ctx_weight) * _z(_context_score(cand, cond))
+        if text:
+            notes.append(text + ".")
+        if avoid_crowds and "crowd" in CTX:
+            slot = cond.get("tod", 2) * 2 + cond.get("weekend", 0)
+            score = score - 0.75 * _z(CTX["crowd"][cand, slot])
+            notes.append("Favouring quieter places for this time slot.")
+    picks, seen = [], set()                        # a big landmark is several adjacent places: show each name once
+    for i in np.argsort(-score):
+        if NAMES[cand[i]] not in seen:
+            seen.add(NAMES[cand[i]]); picks.append(cand[i])
+            if len(picks) == top_k:
+                break
+    picks = np.array(picks, dtype=np.int64)
     dist = haversine_km(LAT[picks], LON[picks], centre[0], centre[1])
-    return _cards(picks, dist, mode), _map(picks, centre, mode), note
+    return _cards(picks, dist, mode), _map(picks, centre, mode), " ".join(notes)
 
 
 def _photo_page(url):
@@ -150,12 +218,15 @@ def _cards(picks, dist, mode):
     for rank, (p, dk) in enumerate(zip(picks, dist), 1):
         name = html.escape(NAMES[p])
         where = "from your last place" if mode == MODE_HOME else "from centre"
+        tag = CLUSTERS[CLUSTER[p]]
+        if MOOD is not None:
+            tag += " · " + MOODS[int(MOOD[p].argmax())]
         cells.append(
             f'<div class="ap-card"><a href="{html.escape(_photo_page(URLS[p]))}" target="_blank" rel="noopener">'
             f'<img src="{html.escape(URLS[p])}" loading="lazy" alt="{name}" '
             f'onerror="this.style.visibility=\'hidden\'"></a>'
             f'<div class="ap-body"><div class="ap-name">{rank}. {name}</div>'
-            f'<div class="ap-meta">{CLUSTERS[CLUSTER[p]]}</div>'
+            f'<div class="ap-meta">{html.escape(tag)}</div>'
             f'<div class="ap-meta">{dk:.1f} km {where} · {int(CNT[p])} visitors</div></div></div>')
     return '<div class="ap-grid">' + "".join(cells) + "</div>"
 
@@ -176,20 +247,22 @@ def _map(picks, centre, mode):
 def _about():
     t = META.get("test_results", {})
     k = next((x for x in t if x.startswith("all test")), None)
-    rows = ""
-    if k:
-        for name, m in t[k].items():
-            if isinstance(m, dict) and m:
-                rows += f"| {name} | {m['HR@10(=Recall@10)']:.3f} | {m['NDCG@20']:.3f} |\n"
+    if not k:
+        return "Model details unavailable."
+    rows = "".join(f"| {name} | {m['HR@10(=Recall@10)']:.3f} | {m['NDCG@20']:.3f} |\n" for name, m in t[k].items() if isinstance(m, dict) and m)
     return (
         "AuraPath learns from 3.7 million geotagged Flickr photos (YFCC100M, USA and Europe) which places "
         "people photograph, and ranks places a person has not been to yet.\n\n"
         f"**Offline test** ({t[k]['n']:,} users, last visit held out, ranked against all {META['n_pois']:,} places):\n\n"
         "| Method | HR@10 | NDCG@20 |\n|---|---|---|\n" + rows +
-        "\nThe mood mode is a simple popularity-plus-cluster ranking and has not been evaluated offline. "
+        "\n**What is and is not evaluated.** The sample-traveller modes use the trained model above. "
+        "Mood, scenery, live weather, time of day and crowd level are explicit filters: in offline tests the time, weather "
+        "and crowd signals did not improve ranking accuracy, and mood has no ground truth to test against. "
+        "Mood comes from each place's photo tags; \"crowds\" is the number of photographers at that time slot, a stand-in for traffic. "
         "Place names are generated from photo tags and can be rough. "
-        "Photos are Creative Commons images hosted by Flickr; click a photo for its source page and licence."
-    ) if k else "Model details unavailable."
+        "Photos are Creative Commons images hosted by Flickr; click a photo for its source page and licence. "
+        "Live weather is from Open-Meteo."
+    )
 
 
 CSS = """
@@ -211,9 +284,17 @@ with gr.Blocks(title="AuraPath") as demo:
                 lat = gr.Number(label="Latitude", value=48.8566)
                 lon = gr.Number(label="Longitude", value=2.3522)
             radius = gr.Slider(2, 100, value=30, step=1, label="Search radius (km)")
-            mood = gr.Dropdown(CLUSTERS, value=CLUSTERS[3], label="Mood")
+            mood = gr.Dropdown(([ANY] + MOODS) if MOODS else [ANY], value=MOODS[0] if MOODS else ANY, label="Mood")
+            scenery = gr.Dropdown([ANY] + CLUSTERS, value=ANY, label="Scenery")
             traveller = gr.Dropdown(TRAVELLERS, value=TRAVELLERS[0], label="Sample traveller", visible=False)
-            weight = gr.Slider(0, 4, value=2.0, step=0.25, label="Personalisation strength (0 = popularity only)")
+            weight = gr.Slider(0, 4, value=1.5, step=0.25, label="Personalisation strength (0 = popularity only)")
+            with gr.Accordion("Right now at the destination", open=True) as ctx_box:
+                use_live = gr.Checkbox(value=True, label="Use live weather and local time")
+                tod = gr.Dropdown([LIVE] + TOD, value=LIVE, label="Time of day")
+                weather = gr.Dropdown([LIVE] + WEATHER, value=LIVE, label="Weather")
+                temp = gr.Dropdown([LIVE] + TEMP, value=LIVE, label="Temperature")
+                ctx_weight = gr.Slider(0, 2, value=0.75, step=0.25, label="How much conditions matter")
+                avoid = gr.Checkbox(value=False, label="Avoid crowds")
             top_k = gr.Slider(4, 24, value=12, step=1, label="How many places")
             go_btn = gr.Button("Recommend", variant="primary")
         with gr.Column(scale=2):
@@ -226,11 +307,12 @@ with gr.Blocks(title="AuraPath") as demo:
     def _toggle(m, c):
         dest = m != MODE_HOME
         return (gr.update(visible=dest), gr.update(visible=dest and c == CUSTOM), gr.update(visible=dest),
-                gr.update(visible=m == MODE_MOOD), gr.update(visible=m != MODE_MOOD), gr.update(visible=dest))
+                gr.update(visible=m == MODE_MOOD), gr.update(visible=m == MODE_MOOD), gr.update(visible=m != MODE_MOOD),
+                gr.update(visible=dest), gr.update(visible=dest))
 
     for comp in (mode, city):
-        comp.change(_toggle, [mode, city], [city, custom_row, radius, mood, traveller, weight])
-    inputs = [mode, city, lat, lon, radius, mood, traveller, weight, top_k]
+        comp.change(_toggle, [mode, city], [city, custom_row, radius, mood, scenery, traveller, weight, ctx_box])
+    inputs = [mode, city, lat, lon, radius, mood, scenery, traveller, weight, use_live, tod, weather, temp, ctx_weight, avoid, top_k]
     go_btn.click(recommend, inputs, [cards, fmap, note])
     demo.load(recommend, inputs, [cards, fmap, note])
 
