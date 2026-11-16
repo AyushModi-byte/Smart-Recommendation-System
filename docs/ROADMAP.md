@@ -136,6 +136,23 @@ test visit (its timestamp, and the weather at the candidate's location on that d
 
 **Done when.** A table of each context group added alone and together, against Phase 1.
 
+**Result of step 1** (`training/08_context_time.py`, `runs/p1_split/context_time*_results.json`).
+Query context = the timestamp of the held-out visit. 14,955 test users, weights tuned on validation:
+
+| Method | HR@10 | NDCG@20 | NDCG@20 gain over model, 95% CI |
+|---|---|---|---|
+| Model alone | 0.1745 | 0.1184 | |
+| + time affinity per place | 0.1736 | 0.1192 | +0.0008 [+0.0001, +0.0015] |
+| + time affinity, backing off to the place's aesthetic cluster | 0.1741 | 0.1194 | +0.0011 [+0.0003, +0.0017] |
+| + popularity in the previous 365 days | 0.1745 | 0.1184 | none (best weight was 0) |
+
+Time of day, weekday, season and daylight together add about 1% to NDCG@20 and nothing to
+HR@10; no single group is distinguishable from zero. Places average under three visits each,
+so a per-place time profile cannot be learned, and the cluster-level profile is too coarse to
+change a ranking. **Decision: time context is not added to the ranking model.** It is kept for
+the demo, where it acts as an explicit, explainable filter (Phase 7). The same sparsity applies
+to weather affinities, so step 2 is evaluated the same cheap way before anything is retrained.
+
 ## Phase 4: trained self-attention (issues 6, 7, 15)
 
 **Problem.** Notebook 07 scores photos with networks that were never trained, then a keyword

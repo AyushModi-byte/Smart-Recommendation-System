@@ -24,6 +24,8 @@ ap.add_argument("--run", required=True)
 ap.add_argument("--smooth", type=float, default=10.0, help="prior strength for the affinity tables")
 ap.add_argument("--val-users", type=int, default=3000)
 ap.add_argument("--bs", type=int, default=32)
+ap.add_argument("--prior", choices=["global", "cluster"], default="global",
+                help="what a place with few visits falls back to: the global time profile or its aesthetic cluster's")
 a = ap.parse_args()
 LAMS = [0.0, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0]
 DAY, SHIFT = 86400, 1 << 20
@@ -39,6 +41,7 @@ tr_u, tr_p, tr_t = d["train_u"].astype(np.int64), d["train_p"].astype(np.int64),
 va_u, va_p, va_t = d["val_u"].astype(np.int64), d["val_p"].astype(np.int64), d["val_ts"].astype(np.int64)
 te_u, te_p, te_t = d["test_u"].astype(np.int64), d["test_p"].astype(np.int64), d["test_ts"].astype(np.int64)
 poi_lat = d["poi_lat"].astype(np.float64)
+clu = d["poi_cluster"].astype(np.int64)
 no_clean_np = d["poi_no_clean"].astype(bool)
 no_clean = torch.as_tensor(no_clean_np, device=dev)
 h_u = np.concatenate([tr_u, va_u]); h_p = np.concatenate([tr_p, va_p]); h_t = np.concatenate([tr_t, va_t])
@@ -79,7 +82,11 @@ class Ctx:
             cnt = np.zeros((n_pois, nb), dtype=np.float64)
             np.add.at(cnt, (p, b[:, g]), 1.0)
             glob = cnt.sum(0) / cnt.sum()
-            aff = np.log((cnt + a.smooth * glob) / (cnt.sum(1, keepdims=True) + a.smooth)) - np.log(glob)
+            prior = glob[None]
+            if a.prior == "cluster":                                    # per-cluster profile, itself smoothed to global
+                cc = np.zeros((6, nb)); np.add.at(cc, clu, cnt)
+                prior = ((cc + 50.0 * glob) / (cc.sum(1, keepdims=True) + 50.0))[clu]
+            aff = np.log((cnt + a.smooth * prior) / (cnt.sum(1, keepdims=True) + a.smooth)) - np.log(glob)
             self.tabs.append(torch.as_tensor(aff, dtype=torch.float32, device=dev))
         day = np.clip((t - T0) // DAY, 0, SHIFT - 1)
         self.keys = torch.as_tensor(np.sort(p * SHIFT + day), device=dev)
@@ -188,5 +195,7 @@ for name, r in tr.items():
     res["methods"][label] = m
     print(f"{label:38s}{m['HR@10(=Recall@10)']:8.4f}{m['HR@20(=Recall@20)']:8.4f}{m['NDCG@20']:9.4f}{m['MRR(=MAP)']:8.4f}"
           f"   {diff.mean():+.4f} [{np.percentile(bs, 2.5):+.4f}, {np.percentile(bs, 97.5):+.4f}]")
-json.dump(res, open(os.path.join(run_dir, "context_time_results.json"), "w"), indent=1)
-print("saved", os.path.join(run_dir, "context_time_results.json"))
+out_name = "context_time_results.json" if a.prior == "global" else f"context_time_{a.prior}_results.json"
+res["prior"] = a.prior
+json.dump(res, open(os.path.join(run_dir, out_name), "w"), indent=1)
+print("saved", os.path.join(run_dir, out_name))
