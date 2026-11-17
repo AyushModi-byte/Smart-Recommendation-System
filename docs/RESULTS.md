@@ -132,6 +132,23 @@ Final model, same test users, content inputs deliberately damaged:
 
 About 9% of NDCG@20 comes from the visual embeddings and clusters; the rest from geography and popularity.
 
+## Learning taste from liked places (swipe app)
+
+`training/14_swipe_check.py`, 6,000 test users: the user's taste is the mean of the places they visited instead of
+their own photos, and with "last k" only their k most recent places are known (a new app user with k likes).
+
+| Input | AuraPath HR@10 | NDCG@20 | Best baseline HR@10 |
+|---|---|---|---|
+| Own photos (normal) | 0.175 | 0.118 | 0.066 |
+| All visited places | 0.177 | 0.121 | |
+| Last 1 place | 0.145 | 0.099 | 0.117 |
+| Last 3 places | 0.156 | 0.108 | 0.097 |
+| Last 5 places | 0.164 | 0.114 | 0.085 |
+| Last 10 places | 0.171 | 0.117 | 0.073 |
+
+Places substitute for photos with no loss, so the app can learn from likes alone. Details in
+[SWIPE_APP.md](SWIPE_APP.md).
+
 ## Features that cannot be evaluated offline
 
 - **Mood.** No user's mood is recorded. Each place has a mood profile from its tags (Relaxed, Lively,

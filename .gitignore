@@ -2,6 +2,8 @@
 brain/
 data_v*/
 bundle/
+bundle_swipe/
+*.db
 *.npy
 *.npz
 *.pth
@@ -56,3 +58,9 @@ runs/smoke*/
 
 # ---- compact copies built for upload to the server ----
 staging/
+
+# ---- web app ----
+node_modules/
+web/dist/
+bundle_swipe.zip
+bundle_swipe.download.zip

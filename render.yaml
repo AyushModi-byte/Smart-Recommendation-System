@@ -1,0 +1,17 @@
+# Render blueprint for the swipe app's API (free web service, Python runtime: no Docker, so no card needed).
+# The data bundle is downloaded at build time from SWIPE_BUNDLE_URL (see docs/SWIPE_APP.md).
+services:
+  - type: web
+    name: aurapath-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r server/requirements.txt && python scripts/fetch_swipe_bundle.py
+    startCommand: uvicorn server.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: SWIPE_BUNDLE_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false

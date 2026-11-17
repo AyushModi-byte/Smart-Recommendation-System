@@ -71,8 +71,10 @@ re-derived clustering. Every experiment, with numbers, is in [docs/RESULTS.md](d
 ```
 notebooks/   01–12: the original v1 experiments, with their outputs
 training/    v2 pipeline as runnable scripts (prepare, train, evaluate, export)
-app/         the web demo (Gradio) and its numpy-only inference
-scripts/     helpers for syncing with the GPU server
+app/         the Gradio demo and the numpy-only inference both apps use
+server/      API for the swipe app (FastAPI, numpy)
+web/         the swipe app: map plus one recommended place at a time (React, MapLibre)
+scripts/     server sync, bundle download, laptop tunnel
 docs/        data manifest, known issues, server workflow
 legacy/      the first demo attempt (v1 model), kept for reference
 brain/       data and model artifacts (not in git, see docs/DATA.md)
@@ -110,6 +112,13 @@ Scripts `07`-`12` and `01b` are the experiments reported in [docs/RESULTS.md](do
 The data in `brain/` is not distributed with the repository. See
 [docs/DATA.md](docs/DATA.md) for what each file is and which ones each step needs.
 
+## Swipe app
+
+A map with one recommended place at a time: like it (and post about it) or skip it, and the next cards adapt.
+Taste is learned from the places you like; offline, three likes already put the model 60% ahead of the best
+baseline. Setup, results and free deployment (Render + Vercel, laptop tunnel as backup) are in
+[docs/SWIPE_APP.md](docs/SWIPE_APP.md).
+
 ## Evaluation protocol (v2)
 
 - Each user's visits are ordered by time. The last visit is the test target, the
@@ -125,7 +134,8 @@ The data in `brain/` is not distributed with the repository. See
 - [docs/DATA.md](docs/DATA.md): data manifest and what depends on what
 - [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md): problems found in v1 and their status
 - [docs/DGX_WORKFLOW.md](docs/DGX_WORKFLOW.md): working between the laptop and the GPU server
-- [docs/DEPLOY.md](docs/DEPLOY.md): running the demo locally and deploying it
+- [docs/DEPLOY.md](docs/DEPLOY.md): running the Gradio demo locally and deploying it
+- [docs/SWIPE_APP.md](docs/SWIPE_APP.md): the swipe app, its offline check and deployment
 
 ## Authors
 
