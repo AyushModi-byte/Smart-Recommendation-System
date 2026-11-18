@@ -10,13 +10,19 @@ fuzzy "aesthetic" clusters of places, and (in v2) geography and popularity.
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-red)](https://pytorch.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
+**Live app:** https://recommendation-system-gray-seven.vercel.app (the free API sleeps when idle; the first
+load can take up to a minute)
+
 ## Status
 
 | Part | State |
 |---|---|
 | v1 pipeline (notebooks 01–12) | Complete. Kept as the historical record of the original experiments. |
 | v2 pipeline (`training/`) | Complete. Leakage-free protocol, results below. |
-| Web demo (`app/`) | Gradio app with mood, live weather and crowd filters; runs locally. Deployment steps in [docs/DEPLOY.md](docs/DEPLOY.md). |
+| Experiments from the proposal | All built and tested: quintuplet loss, attention pooling, ICA + fuzzy C-means, weather, time, crowd, mood, collaborative filtering. See [What the proposal asked for](#what-the-proposal-asked-for). |
+| Swipe app (`server/`, `web/`) | **Live.** Map plus one recommended place at a time; learns from likes. API on Render, web app on Vercel. |
+| Gradio demo (`app/`) | Earlier demo with mood, live weather and crowd filters; runs locally ([docs/DEPLOY.md](docs/DEPLOY.md)). |
+| Still to do | Live weather and crowd in the swipe app, user accounts, report and slides update. See [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md). |
 
 ## Results
 
@@ -40,6 +46,19 @@ Test set: 14,955 users, one held-out last visit each, ranked against all 177,564
 Also tested and **not** adopted, because none improved ranking: collaborative filtering, time and
 weather context, crowd level, trained attention pooling, retrained quintuplet embeddings, and a
 re-derived clustering. Every experiment, with numbers, is in [docs/RESULTS.md](docs/RESULTS.md).
+
+### What the proposal asked for
+
+| Proposal item | Outcome |
+|---|---|
+| Visual encoder: ResNet50, quintuplet loss, self-attention over photos | Built. Retrained quintuplet embeddings retrieve unseen places better (Recall@10 0.219 vs 0.106 for v1) but do not improve ranking; learned attention stays close to a plain mean. |
+| Clustering: ICA picks the number of clusters, fuzzy C-means | Built. Four clusters are best supported; ICA reaches the same objective as k-means++ initialisation. |
+| Fusion of visual, latent and context features (weather, temperature, traffic, mood) | Built. Weather, time and crowd add nothing measurable (places average under three visits). Mood has no ground truth, so it is a user-chosen filter. |
+| Precision and MAP more than 23% above popularity | **Met:** +155% Precision@10 and +178% MAP even over the strongest baseline. |
+| 60% lower MAE | **Not met:** 52%. |
+| Recommendations in a new city | **Only with a stated destination** (HR@10 0.456 vs 0.424). The app asks for the area. |
+| Real-time mood, weather and traffic filtering | Mood in the swipe app; weather and crowd in the Gradio demo, not yet in the swipe app. |
+| "Social influence clusters" of users | Not built. |
 
 > **About the v1 numbers.** The metrics originally reported for v1 (AUC-ROC 0.998,
 > Hit Rate@20 37.6%) came from an evaluation that leaked test information and are
@@ -74,7 +93,8 @@ training/    v2 pipeline as runnable scripts (prepare, train, evaluate, export)
 app/         the Gradio demo and the numpy-only inference both apps use
 server/      API for the swipe app (FastAPI, numpy)
 web/         the swipe app: map plus one recommended place at a time (React, MapLibre)
-scripts/     server sync, bundle download, laptop tunnel
+scripts/     server sync, bundle pack/download, laptop tunnel
+render.yaml  Render blueprint for the swipe app's API
 docs/        data manifest, known issues, server workflow
 legacy/      the first demo attempt (v1 model), kept for reference
 brain/       data and model artifacts (not in git, see docs/DATA.md)
@@ -114,10 +134,23 @@ The data in `brain/` is not distributed with the repository. See
 
 ## Swipe app
 
-A map with one recommended place at a time: like it (and post about it) or skip it, and the next cards adapt.
-Taste is learned from the places you like; offline, three likes already put the model 60% ahead of the best
-baseline. Setup, results and free deployment (Render + Vercel, laptop tunnel as backup) are in
-[docs/SWIPE_APP.md](docs/SWIPE_APP.md).
+**Live:** https://recommendation-system-gray-seven.vercel.app
+
+A map with one recommended place at a time: like it (and post about it), skip it or save it, and the next
+cards adapt. Pick any of 3,464 towns, an area of 5–60 km, a scenery type, a mood or "hidden gems".
+
+- **Learns from likes.** A new user has no photos, so taste is the mean embedding of the liked places. Tested
+  offline on 6,000 users: liked places work as well as the user's own photos (HR@10 0.177 vs 0.175), and
+  three likes already put the model 60% ahead of the best baseline.
+- **Cards.** Name, town, tags, best months, visitor count and up to six photos per place, one per photographer.
+  Photos are ranked from the stored ResNet50 features: how typical of the place they look, minus how much
+  people or screens fill the frame (`training/17`–`18`). Dead Flickr links are skipped.
+- **Stack.** FastAPI + numpy on Render (free, about 215 MB of memory, under 0.2 s per request), React +
+  MapLibre on Vercel. The data bundle (103 MB) is a GitHub release asset. A laptop + Cloudflare Tunnel
+  backup serves the whole app from one command.
+- **Not yet.** Likes, saves and posts stay in the browser; accounts are next ([docs/NEXT_STEPS.md](docs/NEXT_STEPS.md)).
+
+Setup, results and deployment: [docs/SWIPE_APP.md](docs/SWIPE_APP.md).
 
 ## Evaluation protocol (v2)
 
@@ -136,6 +169,7 @@ baseline. Setup, results and free deployment (Render + Vercel, laptop tunnel as 
 - [docs/DGX_WORKFLOW.md](docs/DGX_WORKFLOW.md): working between the laptop and the GPU server
 - [docs/DEPLOY.md](docs/DEPLOY.md): running the Gradio demo locally and deploying it
 - [docs/SWIPE_APP.md](docs/SWIPE_APP.md): the swipe app, its offline check and deployment
+- [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md): what is left and future directions
 
 ## Authors
 

@@ -6,8 +6,8 @@ mood, real-time filtering, collaborative filtering, splitting giant places).
 
 ## Outcome
 
-All phases are complete except deployment, which needs a hosting account. Numbers are in
-[RESULTS.md](RESULTS.md).
+All phases are complete. Numbers are in [RESULTS.md](RESULTS.md). Deployment went to the swipe app
+([SWIPE_APP.md](SWIPE_APP.md)) instead of the Gradio demo; what is left now is in [NEXT_STEPS.md](NEXT_STEPS.md).
 
 | Phase | Outcome |
 |---|---|
@@ -18,7 +18,7 @@ All phases are complete except deployment, which needs a hosting account. Number
 | 4 | Tested, not adopted. Trained attention pooling equals mean pooling; learned weights stay near uniform |
 | 5 | Tested, not adopted. New embeddings retrieve better (0.219 vs 0.106 for v1) but ranking does not improve |
 | 6 | Analysis done, not adopted for ranking. K = 4 is the supported choice; ICA adds nothing over k-means++ |
-| 7 | Demo has mood, scenery, live weather and time, and an avoid-crowds option. Not deployed yet |
+| 7 | Demo has mood, scenery, live weather and time, and an avoid-crowds option (local only). The swipe app is deployed (Render + Vercel) but has mood only so far |
 | 8 | Final model is `p1_split`. Proposal benchmarks: Precision/MAP met, MAE reduction 52% (target 60%) |
 
 The plan below is kept as written, with results added under Phases 2 and 3.
