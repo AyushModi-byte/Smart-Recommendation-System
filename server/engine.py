@@ -9,8 +9,13 @@ popular-within-25-km (HR@10 0.145 vs 0.117, 0.156 vs 0.097).
 Final score over places in the chosen area = z(log popularity) + 2 * z(model), the blend tuned for destination mode
 (03_destination_eval.py), plus explicit user choices (mood, scenery, hidden gems) and a penalty for looking like a
 rejected place.
+
+Live conditions (Open-Meteo, no key) are an explicit, visible filter, like mood: in offline tests weather, time and
+crowd did not improve ranking (09_context_weather.py), so they only reorder when the user would expect it: rain,
+cold (< 5 °C) or heat (> 25 °C) favour places people photograph in those conditions, and "quieter" demotes places
+busy in the current time slot (photographers per time-of-day x weekend slot, the stand-in for traffic).
 """
-import difflib, json, math, os, re, sqlite3, sys, threading
+import datetime as dt, difflib, json, math, os, re, sqlite3, sys, threading, time, urllib.parse, urllib.request
 
 import numpy as np
 
@@ -26,6 +31,11 @@ MOOD_ADJ = {"Relaxed": "A relaxed", "Lively": "A lively", "Romantic": "A romanti
 MONTH_NAME = {"JAN": "Jan", "FEB": "Feb", "MAR": "Mar", "APR": "Apr", "MAY": "May", "JUN": "Jun", "JUL": "Jul",
               "AUG": "Aug", "SEP": "Sep", "OCT": "Oct", "NOV": "Nov", "DEC": "Dec"}
 MODEL_W, CHOICE_W, REJECT_W, GENERIC_PEN = 2.0, 1.0, 0.75, 0.25
+WEATHER_W, QUIET_W = 0.75, 0.75
+TOD = ["night", "morning", "afternoon", "evening"]                   # hour // 6, as in training/context_tables.py
+TEMP_EDGES = [5.0, 15.0, 25.0]
+RAIN_CODES = {51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99}   # WMO codes: drizzle, rain, showers, storms
+COND_TTL = 900                                                        # seconds a weather lookup is reused
 MAX_CAND = 20000
 
 
@@ -57,6 +67,7 @@ class Engine:
         self.lat, self.lon = z["lat"].astype(np.float64), z["lon"].astype(np.float64)
         self.cnt, self.cluster, self.valid = z["cnt"], z["cluster"].astype(np.int64), z["valid"]
         self.mood, self.generic = z["mood"], z["generic"]
+        self.crowd = z["crowd"]                                # (P, 8) log1p photographers per time-of-day x weekend slot
         self.logpop = np.log1p(self.cnt).astype(np.float32)
         self.moods = self.meta["moods"]
         self.n_mem = int(self.meta.get("mem_dim", 6))
@@ -64,6 +75,13 @@ class Engine:
         self.n = len(self.lat)
         self.db_path = os.path.join(path, "places.db")
         self._local = threading.local()
+        ctx = next((c for c in (os.path.join(path, "context.npz"), os.path.join(HERE, "context.npz")) if os.path.exists(c)), None)
+        self.ctx = None
+        if ctx:                                                 # weather affinity per place (training/context_tables.py)
+            z = np.load(ctx)
+            if len(z["aff_rain"]) == self.n:
+                self.ctx = {k: z[k].astype(np.float32) for k in ("aff_rain", "aff_temp")}
+        self._cond_cache, self._cond_lock = {}, threading.Lock()
 
     # ---------- storage ----------
     def _db(self):
@@ -155,6 +173,53 @@ class Engine:
             c.update(extra)
         return c
 
+    # ---------- live conditions ----------
+    def conditions(self, lat, lon):
+        """Current weather and local time at a point (Open-Meteo, no key), cached per ~10 km cell. None if offline."""
+        key = (round(float(lat), 1), round(float(lon), 1))
+        with self._cond_lock:
+            hit = self._cond_cache.get(key)
+        if hit and time.time() - hit[0] < COND_TTL:
+            return hit[1]
+        url = "https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode(
+            {"latitude": key[0], "longitude": key[1], "current": "temperature_2m,precipitation,weather_code,is_day",
+             "timezone": "auto"})
+        try:
+            with urllib.request.urlopen(url, timeout=4) as r:
+                cur = json.loads(r.read().decode("utf-8"))["current"]
+            t = dt.datetime.fromisoformat(cur["time"])
+            temp, rain = float(cur["temperature_2m"]), float(cur["precipitation"]) > 0.0 or int(cur.get("weather_code", 0)) in RAIN_CODES
+            out = {"temp_c": round(temp), "rain": bool(rain), "is_day": bool(cur["is_day"]), "local_time": t.strftime("%H:%M"),
+                   "tod": t.hour // 6, "weekend": t.weekday() >= 5, "temp_band": int(np.digitize(temp, TEMP_EDGES))}
+        except Exception:
+            out = None
+        with self._cond_lock:
+            if len(self._cond_cache) > 5000:
+                self._cond_cache.clear()
+            self._cond_cache[key] = (time.time(), out)
+        return out
+
+    def _context(self, cand, weather, quiet, cond):
+        """-> (score adjustment, notes shown to the user)"""
+        adj, notes = np.zeros(len(cand), dtype=np.float32), []
+        if cond is None:
+            if weather or quiet:
+                notes.append("Live weather is unavailable right now.")
+            return adj, notes
+        if weather and self.ctx is not None:
+            if cond["rain"]:
+                adj += WEATHER_W * _z(self.ctx["aff_rain"][cand, 1])
+                notes.append(f"Raining now ({cond['temp_c']} °C): places people photograph in the rain come first.")
+            elif cond["temp_band"] in (0, 3):
+                adj += WEATHER_W * _z(self.ctx["aff_temp"][cand, cond["temp_band"]])
+                notes.append(f"{'Cold' if cond['temp_band'] == 0 else 'Hot'} out ({cond['temp_c']} °C): places people "
+                             f"visit in this weather come first.")
+        if quiet:
+            slot = cond["tod"] * 2 + int(cond["weekend"])
+            adj -= QUIET_W * _z(self.crowd[cand, slot].astype(np.float32))
+            notes.append(f"Quieter places for a {'weekend' if cond['weekend'] else 'weekday'} {TOD[cond['tod']]}.")
+        return adj, notes
+
     # ---------- ranking ----------
     def _model(self, accepted, cand):
         taste = self.emb[accepted].astype(np.float32).mean(0, keepdims=True)
@@ -172,7 +237,7 @@ class Engine:
         return v / np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-6)
 
     def recommend(self, lat, lon, radius_km=25.0, accepted=(), rejected=(), seen=(), mood=None, category=None,
-                  hidden=False, n=6, explore=0.2, seed=None):
+                  hidden=False, n=6, explore=0.2, seed=None, weather=True, quiet=False):
         accepted = [int(i) for i in accepted if 0 <= int(i) < self.n]
         rejected = [int(i) for i in rejected if 0 <= int(i) < self.n]
         seen = [int(i) for i in seen if 0 <= int(i) < self.n]
@@ -181,8 +246,10 @@ class Engine:
         keep = self.valid & (d <= float(radius_km)) & (self.cnt >= 2)
         keep[accepted + rejected + seen] = False
         cand = np.nonzero(keep)[0]
+        cond = self.conditions(lat, lon) if (weather or quiet) else None
+        live = {"conditions": cond, "notes": []}
         if len(cand) == 0:
-            return {"cards": [], "n_candidates": 0}
+            return {"cards": [], "n_candidates": 0, **live}
         if len(cand) > MAX_CAND:
             cand = cand[np.argsort(-self.logpop[cand])[:MAX_CAND]]
         if (~self.generic[cand]).sum() >= 100:            # enough properly named places: skip tag-titled ones
@@ -192,7 +259,7 @@ class Engine:
             dd = haversine_km(self.lat[cand][:, None], self.lon[cand][:, None], self.lat[touched][None], self.lon[touched][None])
             cand = cand[dd.min(1) >= 0.1]
             if len(cand) == 0:
-                return {"cards": [], "n_candidates": 0}
+                return {"cards": [], "n_candidates": 0, **live}
         score = (-0.5 if hidden else 1.0) * _z(self.logpop[cand])
         if accepted:
             score = score + MODEL_W * _z(self._model(accepted, cand))
@@ -206,6 +273,8 @@ class Engine:
             sim_rej = (self._vis(cand) @ self._vis(rejected[-30:]).T).max(1)
             score = score - REJECT_W * _z(sim_rej)
         score = score - GENERIC_PEN * self.generic[cand]
+        adj, live["notes"] = self._context(cand, weather, quiet, cond)
+        score = score + adj
 
         order = np.argsort(-score)
         rank_of = np.empty(len(cand), dtype=np.int64); rank_of[order] = np.arange(len(cand))
@@ -248,4 +317,4 @@ class Engine:
                 reason = f"Because you liked {self.title(src, acc_rows[src])}" if src in acc_rows else "Matches your taste"
             top = max(1, math.ceil(100.0 * (rank_of[j] + 1) / len(cand)))
             cards.append(self.card(i, info[i], {"reason": reason, "top_pct": int(top), "distance_km": round(float(d[i]), 1)}))
-        return {"cards": cards, "n_candidates": int(len(cand))}
+        return {"cards": cards, "n_candidates": int(len(cand)), **live}

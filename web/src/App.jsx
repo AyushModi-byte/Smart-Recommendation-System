@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MapView from "./MapView.jsx";
 import PlaceCard from "./PlaceCard.jsx";
 import { getMeta, getPlace, recommend, searchTowns, sendFeedback } from "./api.js";
+import * as acct from "./account.js";
+import { Community, Onboarding, Profile, SignIn } from "./AccountViews.jsx";
 import { Bookmark, Close, Heart, Pin, Search, Target, Undo, X } from "./icons.jsx";
 
 const STORE = "aurapath.v1";
@@ -43,7 +45,8 @@ export default function App() {
   const [liked, setLiked] = useState(saved0.liked || []);            // cards
   const [saved, setSaved] = useState(saved0.saved || []);            // cards
   const [posts, setPosts] = useState(saved0.posts || []);
-  const [filters, setFilters] = useState(saved0.filters || { category: null, mood: null, hidden: false });
+  const [filters, setFilters] = useState({ category: null, mood: null, hidden: false, weather: true, quiet: false, ...(saved0.filters || {}) });
+  const [live, setLive] = useState(null);                              // {conditions, notes} from the last batch
   const [session] = useState(saved0.session || newSession());
   const [history, setHistory] = useState([]);                         // undo stack: {card, action}
   const [queue, setQueue] = useState([]);
@@ -56,6 +59,26 @@ export default function App() {
   const [compose, setCompose] = useState(null);                       // card being posted about
   const narrow = useIsNarrow();
   const req = useRef(0);
+  const [user, setUser] = useState(null);                              // Supabase user, when accounts are on
+  const [profile, setProfile] = useState(null);
+  const [signIn, setSignIn] = useState(false);
+  const [onboard, setOnboard] = useState(false);
+  const [drawerTab, setDrawerTab] = useState("liked");
+  const synced = useRef(null);                                        // user id whose data has been merged
+
+  useEffect(() => {
+    if (!acct.sb) return;
+    acct.sb.auth.getSession().then(({ data }) => setUser(data.session?.user || null));
+    const { data } = acct.sb.auth.onAuthStateChange((_e, s) => setUser(s?.user || null));
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  // signed in: load the profile (or ask for one)
+  useEffect(() => {
+    if (!user) { setProfile(null); synced.current = null; return; }
+    acct.loadProfile(user.id).then((p) => { if (p) setProfile(p); else setOnboard(true); })
+      .catch((e) => setError("Could not load your profile. " + e.message));
+  }, [user]);
 
   useEffect(() => {
     try {
@@ -93,8 +116,10 @@ export default function App() {
         accepted: state.accepted.slice(-200), rejected: state.rejected.slice(-200),
         seen: [...state.seen, ...(keepFirst ? [keepFirst.id] : [])].slice(-600),
         mood: state.filters.mood, category: state.filters.category, hidden: state.filters.hidden, n: 6,
+        weather: state.filters.weather, quiet: state.filters.quiet,
       }, setWaking);
       if (id !== req.current) return;
+      setLive({ conditions: r.conditions || null, notes: r.notes || [] });
       setQueue(keepFirst ? [keepFirst, ...r.cards.filter((c) => c.id !== keepFirst.id)] : r.cards);
       if (!r.cards.length && !keepFirst) setError("Nothing left to show here. Widen the area, clear a filter, or search another town.");
     } catch (e) {
@@ -108,6 +133,43 @@ export default function App() {
   const snap = useRef(snapshot);
   snap.current = snapshot;
 
+  // signed in with a profile: merge this device's likes, saves, skips and posts with the account, once per user
+  useEffect(() => {
+    if (!user || !profile || synced.current === user.id) return;
+    synced.current = user.id;
+    if (profile.home) setArea((a) => ({ ...a, ...profile.home }));
+    (async () => {
+      const st = snap.current;
+      const srv = await acct.loadActions();
+      const has = { accept: new Set(srv.accept.map((c) => c.id)), reject: new Set(srv.reject), save: new Set(srv.save.map((c) => c.id)) };
+      const likedById = new Map(liked.map((c) => [c.id, c]));
+      const savedIds = new Set(saved.map((c) => c.id));
+      await acct.putActions([
+        ...st.accepted.filter((i) => !has.accept.has(i))
+          .map((i) => ({ place_id: i, action: "accept", card: likedById.has(i) ? acct.slimCard(likedById.get(i)) : null })),
+        ...st.rejected.filter((i) => !has.reject.has(i)).map((i) => ({ place_id: i, action: "reject", card: null })),
+        ...saved.filter((c) => !has.save.has(c.id)).map((c) => ({ place_id: c.id, action: "save", card: acct.slimCard(c) })),
+      ]);
+      const acc = [...srv.accept.map((c) => c.id), ...st.accepted.filter((i) => !has.accept.has(i))];
+      const rej = [...srv.reject, ...st.rejected.filter((i) => !has.reject.has(i))];
+      setAccepted(acc);
+      setRejected(rej);
+      setSeen((s) => [...new Set([...s, ...acc, ...rej])]);
+      setLiked((l) => [...l, ...srv.accept.filter((c) => !likedById.has(c.id)).reverse()]);
+      setSaved((v) => [...v, ...srv.save.filter((c) => !savedIds.has(c.id)).reverse()]);
+      for (const p of posts.filter((x) => !x.synced)) await acct.addPost(p.place, p.text);
+      const mine = await acct.myPosts(user.id);
+      setPosts(mine.map((x) => ({ id: x.id, place: x.place, text: x.body, time: x.created_at, synced: true })));
+    })().catch((e) => setError("Could not sync your account. " + e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, profile]);
+
+  const online = !!(user && profile);
+  const pushAction = (card, action) => {
+    if (online) acct.putActions([{ place_id: card.id, action, card: action === "reject" ? null : acct.slimCard(card) }]).catch(() => {});
+  };
+  const dropAction = (card, action) => { if (online) acct.deleteAction(card.id, action).catch(() => {}); };
+
   useEffect(() => {
     if (meta) refill(snap.current, null);
   }, [meta, area, filters, refill]);
@@ -119,6 +181,7 @@ export default function App() {
     const card = queue[0];
     if (!card) return;
     sendFeedback(session, card.id, action);
+    pushAction(card, action);
     const next = { ...snap.current, seen: [...snap.current.seen, card.id] };
     if (action === "accept") {
       next.accepted = [...snap.current.accepted, card.id];
@@ -137,7 +200,8 @@ export default function App() {
     const rest = queue.slice(1);
     setQueue(rest);
     refill(next, rest[0] || null);
-  }, [queue, session, refill]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue, session, refill, online]);
 
   const undo = useCallback(() => {
     const last = history[history.length - 1];
@@ -146,6 +210,7 @@ export default function App() {
     req.current++;                                   // drop a refill still in flight so it cannot hide the restored card
     setLoading(false);
     sendFeedback(session, card.id, "undo");
+    dropAction(card, action);
     setHistory((h) => h.slice(0, -1));
     setSeen((s) => s.filter((i) => i !== card.id));
     if (action === "accept") {
@@ -155,11 +220,12 @@ export default function App() {
     if (action === "reject") setRejected((r) => r.filter((i) => i !== card.id));
     if (action === "save") setSaved((s) => s.filter((c) => c.id !== card.id));
     setQueue((q) => [card, ...q.filter((c) => c.id !== card.id)]);
-  }, [history, session]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history, session, online]);
 
   useEffect(() => {
     const onKey = (e) => {
-      if (compose || e.target.closest("input, textarea")) return;
+      if (compose || signIn || onboard || e.target.closest("input, textarea")) return;
       if (e.key === "ArrowLeft" || e.key === "x") act("reject");
       else if (e.key === "ArrowRight" || e.key === "l") act("accept");
       else if (e.key === "s") act("save");
@@ -167,7 +233,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [act, undo, compose]);
+  }, [act, undo, compose, signIn, onboard]);
 
   const setAreaTo = (a) => { setQueue([]); setArea({ ...area, ...a }); };
   const startOver = () => {
@@ -197,19 +263,28 @@ export default function App() {
           ))}
           <button className={"chip" + (filters.hidden ? " on" : "")}
                   onClick={() => setFilters({ ...filters, hidden: !filters.hidden })}>Hidden gems</button>
+          <button className={"chip" + (filters.quiet ? " on" : "")} title="Favour places that are usually quiet at this time of day"
+                  onClick={() => setFilters({ ...filters, quiet: !filters.quiet })}>Quieter now</button>
+          <button className={"chip" + (filters.weather ? " on" : "")} title="Reorder for rain, cold or heat in this area right now"
+                  onClick={() => setFilters({ ...filters, weather: !filters.weather })}>Weather-aware</button>
           <select className={"chip select" + (filters.mood ? " on" : "")} value={filters.mood || ""} aria-label="Mood"
                   onChange={(e) => setFilters({ ...filters, mood: e.target.value || null })}>
             <option value="">Any mood</option>
             {(meta?.moods || []).map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
-        <button className="counter" onClick={() => setDrawer(true)}>
+        {acct.accountsEnabled && (user
+          ? <button className="avatar" onClick={() => { setDrawerTab("profile"); setDrawer(true); }} title="Your profile"
+                    aria-label="Your profile">{(profile?.name || user.email || "?").slice(0, 1).toUpperCase()}</button>
+          : <button className="btn small" onClick={() => setSignIn(true)}>Sign in</button>)}
+        <button className="counter" onClick={() => { setDrawerTab("liked"); setDrawer(true); }}>
           <span><Bookmark size={14} /> {saved.length}</span>
           <span><Heart size={14} /> {liked.length}</span>
         </button>
       </header>
 
       <aside className="panel">
+        <LiveLine live={live} />
         {current ? (
           <PlaceCard card={current} expanded={expanded} onToggle={() => setExpanded((x) => !x)} />
         ) : (
@@ -230,12 +305,43 @@ export default function App() {
 
       {drawer && (
         <Drawer liked={liked} saved={saved} posts={posts} onClose={() => setDrawer(false)} onStartOver={startOver}
+                tab={drawerTab} setTab={setDrawerTab} user={user} profile={profile}
+                onSignOut={() => { acct.signOut(); setDrawer(false); }}
+                onMood={(m) => { setDrawer(false); setFilters({ ...filters, mood: m }); }}
+                onHome={() => { setDrawer(false); if (profile?.home) setAreaTo(profile.home); }}
+                onEditProfile={() => { setDrawer(false); setOnboard(true); }}
                 onShow={(c) => { setDrawer(false); setQueue((q) => [c, ...q.filter((x) => x.id !== c.id)]); }} />
       )}
       {compose && (
         <Compose card={compose} onClose={() => setCompose(null)}
-                 onPost={(text) => { setPosts((p) => [{ id: Date.now(), place: compose, text, time: new Date().toISOString() }, ...p]); setCompose(null); }} />
+                 onPost={(text) => {
+                   const card = compose;
+                   setCompose(null);
+                   if (online) {
+                     acct.addPost(card, text)
+                       .then((x) => setPosts((p) => [{ id: x.id, place: x.place, text: x.body, time: x.created_at, synced: true }, ...p]))
+                       .catch((e) => setError("Could not post. " + e.message));
+                   } else {
+                     setPosts((p) => [{ id: Date.now(), place: card, text, time: new Date().toISOString() }, ...p]);
+                   }
+                 }} />
       )}
+      {signIn && <SignIn onClose={() => setSignIn(false)} />}
+      {onboard && user && (
+        <Onboarding profile={profile} area={area} moods={meta?.moods || []} onClose={profile ? () => setOnboard(false) : null}
+                    onSave={async (p) => { const row = await acct.saveProfile(user.id, p); setProfile(row); setOnboard(false); }} />
+      )}
+    </div>
+  );
+}
+
+function LiveLine({ live }) {
+  const c = live?.conditions;
+  if (!c && !live?.notes?.length) return null;
+  return (
+    <div className="live" aria-live="polite">
+      {c && <span className="live-now">{c.rain ? "Rain" : c.is_day ? "Dry" : "Dry, dark"} · {c.temp_c} °C · {c.local_time} local</span>}
+      {live.notes.map((n) => <span key={n} className="live-note">{n}</span>)}
     </div>
   );
 }
@@ -281,8 +387,7 @@ function TownSearch({ area, towns, onPick }) {
   );
 }
 
-function Drawer({ liked, saved, posts, onClose, onShow, onStartOver }) {
-  const [tab, setTab] = useState("liked");
+function Drawer({ liked, saved, posts, onClose, onShow, onStartOver, tab, setTab, user, profile, onSignOut, onMood, onHome, onEditProfile }) {
   const items = tab === "liked" ? liked : saved;
   return (
     <div className="overlay" onClick={onClose}>
@@ -292,18 +397,23 @@ function Drawer({ liked, saved, posts, onClose, onShow, onStartOver }) {
             <button className={tab === "liked" ? "on" : ""} onClick={() => setTab("liked")}>Liked {liked.length}</button>
             <button className={tab === "saved" ? "on" : ""} onClick={() => setTab("saved")}>Saved {saved.length}</button>
             <button className={tab === "posts" ? "on" : ""} onClick={() => setTab("posts")}>Posts {posts.length}</button>
+            {acct.accountsEnabled && <button className={tab === "community" ? "on" : ""} onClick={() => setTab("community")}>Community</button>}
+            {user && <button className={tab === "profile" ? "on" : ""} onClick={() => setTab("profile")}>Profile</button>}
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close"><Close size={18} /></button>
         </div>
         <div className="drawer-body">
-          {tab === "posts" ? (
+          {tab === "profile" && user ? (
+            <Profile user={user} profile={profile} liked={liked} posts={posts} onSignOut={onSignOut} onMood={onMood}
+                     onHome={onHome} onEdit={onEditProfile} />
+          ) : tab === "community" ? <Community /> : tab === "posts" ? (
             posts.length ? posts.map((p) => (
               <div key={p.id} className="post">
                 <div className="post-place">{p.place.name} <small>{p.place.town}</small></div>
                 <p>{p.text}</p>
                 <small>{new Date(p.time).toLocaleString()}</small>
               </div>
-            )) : <p className="muted">When you like a place you can post about it. Posts stay on this device for now.</p>
+            )) : <p className="muted">When you like a place you can post about it.{user ? "" : acct.accountsEnabled ? " Sign in to share posts." : " Posts stay on this device."}</p>
           ) : items.length ? items.map((c) => (
             <button key={c.id} className="mini" onClick={() => onShow(c)}>
               <img src={c.photo} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />

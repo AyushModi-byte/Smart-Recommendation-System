@@ -34,6 +34,8 @@ class RecommendIn(BaseModel):
     hidden: bool = False
     n: int = Field(6, ge=1, le=20)
     explore: float = Field(0.2, ge=0, le=1)
+    weather: bool = True          # reorder for rain / cold / heat at the area right now (Open-Meteo)
+    quiet: bool = False           # demote places that are busy in the current time slot
 
 
 class FeedbackIn(BaseModel):
@@ -52,6 +54,11 @@ def health():
 def meta():
     return {"moods": ENGINE.moods, "categories": [{"id": i, "name": n} for i, n in enumerate(CAT_SHORT)],
             "towns": ENGINE.top_towns(12), "n_places": ENGINE.n, "run": ENGINE.meta["run"]}
+
+
+@app.get("/api/conditions")
+def conditions(lat: float, lon: float):
+    return ENGINE.conditions(lat, lon) or {}
 
 
 @app.get("/api/towns")

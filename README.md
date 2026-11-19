@@ -22,7 +22,9 @@ load can take up to a minute)
 | Experiments from the proposal | All built and tested: quintuplet loss, attention pooling, ICA + fuzzy C-means, weather, time, crowd, mood, collaborative filtering. See [What the proposal asked for](#what-the-proposal-asked-for). |
 | Swipe app (`server/`, `web/`) | **Live.** Map plus one recommended place at a time; learns from likes. API on Render, web app on Vercel. |
 | Gradio demo (`app/`) | Earlier demo with mood, live weather and crowd filters; runs locally ([docs/DEPLOY.md](docs/DEPLOY.md)). |
-| Still to do | Live weather and crowd in the swipe app, user accounts, report and slides update. See [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md). |
+| Public benchmark (`benchmarks/`) | Foursquare NYC on GETNext's split: above the published GETNext numbers with three count features. |
+| Accounts | Built (Supabase, optional): sign-in by email link, profiles, synced likes, shared posts. Needs a Supabase project to switch on ([docs/ACCOUNTS.md](docs/ACCOUNTS.md)). |
+| Still to do | See [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md). |
 
 ## Results
 
@@ -44,10 +46,11 @@ Test set: 14,955 users, one held-out last visit each, ranked against all 177,564
   popularity carry the rest.
 
 **Public benchmark (Foursquare NYC, GETNext's split and protocol).** The same ranker, with a category
-embedding in place of photos: Acc@1 0.223, Acc@10 0.656, MRR 0.364 (3 seeds), against 0.2435 / 0.6143 / 0.3621
-published for GETNext. Most NYC targets are revisits, and simply counting the user's own check-ins scores about
-the same (MRR 0.367). Details: [results/foursquare_nyc.md](results/foursquare_nyc.md),
-[benchmarks/foursquare/](benchmarks/foursquare/README.md).
+embedding in place of photos and three count features (transitions from the current place, the user's visit
+counts, time of day): Acc@1 0.267, Acc@10 0.677, MRR 0.399 (3 seeds), against 0.2435 / 0.6143 / 0.3621 published
+for GETNext and 0.234 / 0.648 / 0.367 for simply counting the user's own check-ins (77% of NYC targets are
+revisits). Without the count features the ranker only ties that count. Details:
+[results/foursquare_nyc.md](results/foursquare_nyc.md), [benchmarks/foursquare/](benchmarks/foursquare/README.md).
 
 Also tested and **not** adopted, because none improved ranking: collaborative filtering, time and
 weather context, crowd level, trained attention pooling, retrained quintuplet embeddings, and a
@@ -63,7 +66,7 @@ re-derived clustering. Every experiment, with numbers, is in [docs/RESULTS.md](d
 | Precision and MAP more than 23% above popularity | **Met:** +155% Precision@10 and +178% MAP even over the strongest baseline. |
 | 60% lower MAE | **Not met:** 52%. |
 | Recommendations in a new city | **Only with a stated destination** (HR@10 0.456 vs 0.424). The app asks for the area. |
-| Real-time mood, weather and traffic filtering | Mood in the swipe app; weather and crowd in the Gradio demo, not yet in the swipe app. |
+| Real-time mood, weather and traffic filtering | Built in the swipe app: mood filter, live weather (Open-Meteo), "quieter now" from crowd levels. |
 | "Social influence clusters" of users | Not built. |
 
 > **About the v1 numbers.** The metrics originally reported for v1 (AUC-ROC 0.998,
@@ -156,7 +159,11 @@ cards adapt. Pick any of 3,464 towns, an area of 5–60 km, a scenery type, a mo
 - **Stack.** FastAPI + numpy on Render (free, about 215 MB of memory, under 0.2 s per request), React +
   MapLibre on Vercel. The data bundle (103 MB) is a GitHub release asset. A laptop + Cloudflare Tunnel
   backup serves the whole app from one command.
-- **Not yet.** Likes, saves and posts stay in the browser; accounts are next ([docs/NEXT_STEPS.md](docs/NEXT_STEPS.md)).
+- **Live conditions.** Current weather for the area is shown on the panel; in rain, cold or heat, places people
+  photograph in those conditions come first. "Quieter now" demotes places busy at this time of day and week.
+- **Accounts (optional).** With a Supabase project connected, sign-in by email link, a profile with a home area
+  and moods, likes synced across devices, and a shared Community feed of posts. Without one, everything stays in
+  the browser. Setup: [docs/ACCOUNTS.md](docs/ACCOUNTS.md).
 
 Setup, results and deployment: [docs/SWIPE_APP.md](docs/SWIPE_APP.md).
 
@@ -177,6 +184,7 @@ Setup, results and deployment: [docs/SWIPE_APP.md](docs/SWIPE_APP.md).
 - [docs/DGX_WORKFLOW.md](docs/DGX_WORKFLOW.md): working between the laptop and the GPU server
 - [docs/DEPLOY.md](docs/DEPLOY.md): running the Gradio demo locally and deploying it
 - [docs/SWIPE_APP.md](docs/SWIPE_APP.md): the swipe app, its offline check and deployment
+- [docs/ACCOUNTS.md](docs/ACCOUNTS.md): switching on user accounts (Supabase)
 - [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md): what is left and future directions
 
 ## Authors

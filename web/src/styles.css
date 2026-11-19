@@ -128,6 +128,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .act.small { width: 44px; height: 44px; color: var(--muted); }
 .act.gold { color: var(--gold); border-color: rgba(212, 165, 20, 0.5); }
 .act.love { width: 66px; height: 66px; background: var(--love); border-color: var(--love); color: #fff; }
+.live { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 14px; padding: 8px 12px; font-size: 12.5px; box-shadow: var(--shadow); }
+.live-now { font-weight: 600; }
+.live-note { color: var(--muted); }
 .hint { text-align: center; font-size: 12px; color: var(--muted); flex-shrink: 0; }
 .toast { background: #3a2222; border: 1px solid #6b2d2d; border-radius: 12px; padding: 10px 14px; font-size: 13px; }
 
@@ -163,6 +167,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .btn { background: var(--accent); border: 0; border-radius: 10px; padding: 9px 18px; font-weight: 700; color: #fff; }
 .btn:disabled { opacity: 0.5; }
 .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
+.btn.small { padding: 8px 14px; font-size: 13px; flex-shrink: 0; }
+.avatar { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--accent); color: #fff;
+  font-weight: 700; display: grid; place-items: center; }
+.avatar.big { width: 52px; height: 52px; font-size: 20px; }
+.field { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--text); width: 100%; }
+.field-label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 13px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.chips.wrap { flex-wrap: wrap; overflow: visible; flex: none; }
+small.danger { color: #f0798c; }
+.profile { display: flex; flex-direction: column; gap: 14px; padding: 8px; line-height: 1.5; }
+.profile-head { display: flex; gap: 12px; align-items: center; }
+.profile-head span:last-child { display: flex; flex-direction: column; }
+.profile-head small { color: var(--muted); }
+.profile .link { padding: 0; text-align: left; color: var(--accent); }
+.stats { display: flex; gap: 18px; color: var(--muted); }
+.stats b { color: var(--text); }
 
 /* ---------- phones: card becomes a bottom sheet ---------- */
 @media (max-width: 760px) {
@@ -175,6 +195,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .town-list { width: min(300px, calc(100vw - 40px)); }
   .search-here { top: 124px; }
   .panel { top: auto; left: 10px; right: 10px; bottom: 40px; width: auto; max-height: 62vh; gap: 10px; }
+  .live { padding: 6px 10px; font-size: 11.5px; border-radius: 12px; }
   .photo { height: 150px; }
   .photo.big { height: 200px; }
   .card-body { padding: 14px 16px 12px; gap: 8px; }

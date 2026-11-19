@@ -6,12 +6,14 @@ left for the B.Tech submission, then directions beyond it.
 
 ## Left for the submission
 
+Done since the first version of this list: live weather and crowd in the swipe app, user accounts (code ready,
+see [ACCOUNTS.md](ACCOUNTS.md)), the rewritten report and slides, and the Foursquare NYC benchmark.
+
 | # | Item | Why | Effort |
 |---|---|---|---|
-| 1 | **Live weather and crowd in the swipe app.** Fetch current weather for the area (Open-Meteo, no key); on rain or cold, show indoor-leaning places first and say so on the card ("Raining now: indoor places first"). Add a "quieter places" switch from the crowd estimate already in the bundle. | The proposal's Phase 3 promises real-time weather and traffic filtering; only the Gradio demo has it. Offline it does not change scores, so it is a user-facing filter, as mood already is. | Half a day |
-| 2 | **User accounts and profiles.** Sign-in, onboarding (location + a few moods), feed centred on the user's location, profile page (liked places on a map, posts, taste summary), likes and posts stored server-side so they sync and others can see posts. | Each user gets their own feed, and the app becomes a real social product. Also gives real like/skip data to measure the recommender live. | 2–3 days |
-| 3 | **Report and slides.** Replace the v1 numbers (AUC 0.998 and the rest are invalid, see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)) with the v2 results, the "what each idea contributed" table, the proposal checklist with the two honest misses (MAE 52% vs 60%, new city only with a destination), and the live app with screenshots. | `BTP docs/` still holds the April versions. | 1–2 days |
-| 4 | **Social influence clusters** (optional). Cluster users by the context of their visits (time, weather, crowd) and report the groups. | The one proposal item not built. Expect insight for the report, not a ranking gain. | Half a day |
+| 1 | **Switch accounts on.** Create the Supabase project, run `supabase/schema.sql`, add the two settings to Vercel ([ACCOUNTS.md](ACCOUNTS.md)), then test sign-in end to end. | The code is built but untested against a live project. | An hour |
+| 2 | **Final pass on the report and slides.** Institute front matter (certificate, declaration), screenshots, and the format the department asks for. | The text and figures are written; the template is the department's. | Half a day |
+| 3 | **Social influence clusters** (optional). Cluster users by the context of their visits (time, weather, crowd) and report the groups. | The one proposal item not built. Expect insight for the report, not a ranking gain. | Half a day |
 
 Housekeeping: revoke the GitHub token that was shared in chat, change the DGX password, back up `brain/`, and
 clear finished runs on the DGX (about 36 of 50 GB used).

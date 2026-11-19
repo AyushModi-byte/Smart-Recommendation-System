@@ -67,3 +67,5 @@ bundle_swipe.download.zip
 
 # Foursquare benchmark: cloned third-party repo and extracted data
 benchmarks/foursquare/external/
+.env.local
+.env.*.local
