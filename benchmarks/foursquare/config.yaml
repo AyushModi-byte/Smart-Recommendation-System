@@ -1,0 +1,29 @@
+# AuraPath v2 ranker on Foursquare NYC (GETNext splits). Every choice here is made on validation only.
+# "(tuned)": picked by a validation-only sweep (runs/foursquare_nyc/tuning/, seeds 0-1, GETNext's 4*Acc@1 + Acc@20):
+# one knob at a time, then combinations; lr 0.005 + radii 1/0.25 km + batch 256 was best (1.673 vs 1.551 default).
+data:
+  short_traj_thres: 2          # GETNext default (param_parser.py)
+
+model:
+  cat_dim: 32                  # learned POI-category embedding
+  hidden: 128                  # NIL tower width (as AuraPath v2)
+  drop: 0.2
+  geo_m: 30                    # reference check-ins for the distance features (as AuraPath v2)
+  near_km: [1.0, 0.25]         # "nearby" radii; AuraPath v2 used 10 / 2 km at continent scale, NYC is one city (tuned)
+  cat_text_model: sentence-transformers/all-MiniLM-L6-v2   # only with --cat_text
+
+train:
+  epochs: 40
+  batch: 256                   # positives per step (tuned)
+  neg: 127                     # sampled negatives per positive (sampled-softmax loss)
+  frac_pop: 0.15               # negatives drawn by popularity^0.75
+  frac_cat: 0.10               # ... from the positive's category (replaces AuraPath's aesthetic-cluster negatives)
+  frac_geo: 0.50               # ... from the positive's geo cell
+  cell_deg: 0.01               # ~1 km cells (AuraPath v2 used 0.5 deg at continent scale)
+  lr: 0.005                    # (tuned)
+  wd: 0.0001
+  patience: 6                  # epochs without a better validation score (4*Acc@1 + Acc@20, GETNext's monitor)
+  eval_batch: 64
+
+baselines:
+  radius_km: [0.5, 1, 2, 5, 10]   # popular-within-radius; the radius is picked on validation

@@ -43,6 +43,12 @@ Test set: 14,955 users, one held-out last visit each, ranked against all 177,564
 - About 9% of the score comes from the visual embeddings and aesthetic clusters; geography and
   popularity carry the rest.
 
+**Public benchmark (Foursquare NYC, GETNext's split and protocol).** The same ranker, with a category
+embedding in place of photos: Acc@1 0.223, Acc@10 0.656, MRR 0.364 (3 seeds), against 0.2435 / 0.6143 / 0.3621
+published for GETNext. Most NYC targets are revisits, and simply counting the user's own check-ins scores about
+the same (MRR 0.367). Details: [results/foursquare_nyc.md](results/foursquare_nyc.md),
+[benchmarks/foursquare/](benchmarks/foursquare/README.md).
+
 Also tested and **not** adopted, because none improved ranking: collaborative filtering, time and
 weather context, crowd level, trained attention pooling, retrained quintuplet embeddings, and a
 re-derived clustering. Every experiment, with numbers, is in [docs/RESULTS.md](docs/RESULTS.md).
@@ -94,6 +100,8 @@ app/         the Gradio demo and the numpy-only inference both apps use
 server/      API for the swipe app (FastAPI, numpy)
 web/         the swipe app: map plus one recommended place at a time (React, MapLibre)
 scripts/     server sync, bundle pack/download, laptop tunnel
+benchmarks/  public benchmark: Foursquare NYC next-POI (GETNext split), separate from the YFCC pipeline
+results/     benchmark result tables
 render.yaml  Render blueprint for the swipe app's API
 docs/        data manifest, known issues, server workflow
 legacy/      the first demo attempt (v1 model), kept for reference

@@ -149,6 +149,22 @@ their own photos, and with "last k" only their k most recent places are known (a
 Places substitute for photos with no loss, so the app can learn from likes alone. Details in
 [SWIPE_APP.md](SWIPE_APP.md).
 
+## Public benchmark: Foursquare NYC
+
+`benchmarks/foursquare/`: the same ranker (category embedding instead of photos) on GETNext's NYC split and
+protocol, 1,351 test trajectories, the last check-in ranked against all 4,980 POIs. Mean of 3 seeds; full table,
+ablations and citations in [results/foursquare_nyc.md](../results/foursquare_nyc.md).
+
+| Method | Acc@1 | Acc@5 | Acc@10 | Acc@20 | MRR |
+|---|---|---|---|---|---|
+| AuraPath v2 | 0.223 | 0.551 | 0.656 | 0.723 | 0.364 |
+| User's own check-in counts | 0.234 | 0.525 | 0.648 | 0.731 | 0.367 |
+| Markov chain | 0.151 | 0.317 | 0.368 | 0.400 | 0.225 |
+| GETNext (published, not reproduced) | 0.2435 | 0.5089 | 0.6143 | 0.6880 | 0.3621 |
+
+77% of NYC test targets are revisits, so counting the user's own check-ins is already competitive. AuraPath
+matches that count and GETNext on MRR, is higher at Acc@5–20 and lower at Acc@1.
+
 ## Features that cannot be evaluated offline
 
 - **Mood.** No user's mood is recorded. Each place has a mood profile from its tags (Relaxed, Lively,
