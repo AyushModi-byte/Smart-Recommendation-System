@@ -66,6 +66,25 @@ def test_training_refs_precede_positive():
         assert (st.p[src] == h[ok, j]).all()
 
 
+def test_extra_features_train_only_and_leave_one_out():
+    """The --extra tables (transitions, visit counts, time slots) are built from training rows only, and a
+    training positive's own check-in is removed from them: a transition seen once gives 0 for its own row."""
+    from .model import SeqFeats
+    sf = SeqFeats(("trans", "freq", "time"), ix, st, torch.device("cpu"))
+    assert int(sf.H.sum()) == len(D["train"]) and int(sf.ps.sum()) == len(D["train"])
+    assert int(sf.gv.sum()) == len(st.positives)
+    rows = torch.as_tensor(st.positives[:2000])
+    u, p = torch.as_tensor(st.u)[rows], torch.as_tensor(st.p)[rows]
+    cur = torch.as_tensor(st.p)[rows - 1]
+    f = sf.feats(u, cur, sf.slot[rows - 1], p[:, None], pos=p, pos_slot=sf.slot[rows])[:, 0]
+    pair = (cur * ix.n_pois + p).numpy()
+    k, c = np.unique(st.p[st.positives - 1] * ix.n_pois + st.p[st.positives], return_counts=True)
+    once = c[np.searchsorted(k, pair)] == 1
+    assert once.any() and (f[torch.as_tensor(once), 0] == 0).all()     # global transition count
+    assert (f[torch.as_tensor(once), 1] == 0).all()                    # this user's transition count
+    assert (f[:, 2] >= 0).all()
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

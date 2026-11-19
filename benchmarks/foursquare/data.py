@@ -70,6 +70,7 @@ class TrainStream:
         self.u = d["u"].to_numpy(np.int64)
         self.p = d["p"].to_numpy(np.int64)
         self.t = d["t"].to_numpy(np.int64)
+        self.tl = self.t + d["timezone"].to_numpy(np.int64) * 60                # local time, seconds
         self.traj = d["trajectory_id"].to_numpy()
         self.key = list(zip(d["user_id"], d["POI_id"], d["UTC_time"]))        # for leakage checks
         same = np.r_[False, self.traj[1:] == self.traj[:-1]]
@@ -83,7 +84,7 @@ class TrainStream:
 def eval_samples(df, ix, short_traj_thres=2):
     """GETNext TrajectoryDatasetVal: skip users not in train, drop POIs not in train, inputs = all but the last
     remaining check-in, skip if fewer than `short_traj_thres` inputs; score only the LAST step."""
-    S = {"u": [], "prefix": [], "prefix_t": [], "target": [], "target_t": [], "traj": [], "key": []}
+    S = {"u": [], "prefix": [], "prefix_t": [], "target": [], "target_t": [], "traj": [], "key": [], "cur_tl": []}
     for traj, g in df.groupby("trajectory_id", sort=False):           # file order inside a trajectory, as GETNext
         user = traj.split("_")[0]
         if user not in ix.uid:
@@ -94,12 +95,21 @@ def eval_samples(df, ix, short_traj_thres=2):
             continue
         S["u"].append(ix.uid[user]); S["prefix"].append(p[:-1]); S["prefix_t"].append(g["t"].to_numpy()[:-1])
         S["target"].append(int(p[-1])); S["target_t"].append(int(g["t"].iloc[-1])); S["traj"].append(traj)
+        S["cur_tl"].append(int(g["t"].iloc[-2] + g["timezone"].iloc[-2] * 60))   # local time of the current check-in
         last = g.iloc[-1]
         S["key"].append((last["user_id"], last["POI_id"], last["UTC_time"]))
     S["u"] = np.array(S["u"], dtype=np.int64)
     S["target"] = np.array(S["target"], dtype=np.int64)
     S["target_t"] = np.array(S["target_t"], dtype=np.int64)
+    S["cur_tl"] = np.array(S["cur_tl"], dtype=np.int64)
     return S
+
+
+def time_slot(tl):
+    """Local seconds -> 16 slots: 3-hour block of the day x weekday / weekend."""
+    tl = np.asarray(tl, dtype=np.int64)
+    weekend = ((tl // 86400 + 3) % 7) >= 5                                    # 1970-01-01 was a Thursday (Mon = 0)
+    return (tl // 3600 % 24) // 3 + 8 * weekend
 
 
 def eval_refs(S, stream, n_users, M):

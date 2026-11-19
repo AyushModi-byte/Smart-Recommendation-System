@@ -6,6 +6,7 @@ Splits, sample construction and metrics follow GETNext's released code ([benchma
 
 | Method | Seeds | Acc@1 | Acc@5 | Acc@10 | Acc@20 | MRR | NDCG@10 |
 |---|---|---|---|---|---|---|---|
+| **AuraPath v2 + transitions, visit counts, time slot** (`--extra trans,freq,time`) | 3 | 0.2672 ± 0.0056 | 0.5581 ± 0.0045 | 0.6773 ± 0.0041 | 0.7535 ± 0.0020 | 0.3989 ± 0.0037 | 0.4592 ± 0.0018 |
 | AuraPath v2 (category embedding) | 3 | 0.2233 ± 0.0253 | 0.5505 ± 0.0096 | 0.6556 ± 0.0063 | 0.7232 ± 0.0044 | 0.3635 ± 0.0184 | 0.4276 ± 0.0151 |
 | AuraPath v2 + category-name text embedding (`--cat_text`) | 3 | 0.2228 ± 0.0114 | 0.5472 ± 0.0050 | 0.6504 ± 0.0034 | 0.7214 ± 0.0060 | 0.3633 ± 0.0065 | 0.4263 ± 0.0047 |
 | Ablation: no category embedding | 3 | 0.1925 ± 0.0056 | 0.5093 ± 0.0097 | 0.6336 ± 0.0013 | 0.7071 ± 0.0057 | 0.3315 ± 0.0053 | 0.3982 ± 0.0044 |
@@ -35,6 +36,21 @@ Source: Yang, Liu and Zhao, *GETNext: Trajectory Flow Map Enhanced Transformer f
 
 **This benchmark is mostly revisits.** 76.6% of test targets are places the user had already checked in at (73.4% in their training history, 38.0% earlier in the same trajectory). Counting the user's own check-ins, with no learning, already reaches the published GETNext numbers on Acc@5, Acc@10, Acc@20 and MRR under this protocol. Any comparison on NYC should show this baseline.
 
-**AuraPath is about as good as that count, not better.** Against the user-frequency baseline it is lower on Acc@1 (0.223 vs 0.234) and Acc@20, slightly higher on Acc@5 and Acc@10, and equal on MRR, every difference within two seed standard deviations. Its distance features to the user's own past check-ins learn the revisit pattern (without them Acc@1 falls to 0.061); the category embedding adds about 3 points of Acc@1 on top (0.193 without it); the frozen text embedding of category names adds nothing.
+**The base ranker is about as good as that count, not better.** AuraPath v2 as built for YFCC (category embedding, distance, density, popularity) is lower than the user-frequency baseline on Acc@1 (0.223 vs 0.234) and equal on MRR. Its distance features to the user's own past check-ins learn the revisit pattern (without them Acc@1 falls to 0.061); the category embedding adds about 3 points of Acc@1 (0.193 without it); the frozen text embedding of category names adds nothing.
 
-**Against GETNext** (published, not reproduced) AuraPath is lower on Acc@1 (0.223 vs 0.2435), higher on Acc@5, Acc@10 and Acc@20, and equal on MRR. AuraPath has no sequential model: it sees the current location, recent check-ins as a set, category taste and popularity, but not the order of the trajectory or the time of day. Acc@1, picking the exact next place, is plausibly where order and time help most, which would fit the gap being there (not tested). Two cautions: the published numbers come from the authors' runs, and their test protocol cannot be checked from the released code, so a small protocol difference could move either side by a few points.
+**Three cheap sequence features close the gap** (`--extra`, `model.SeqFeats`): transitions from the current POI to the candidate (over all users and for this user), the user's own visit count, and how often the candidate and its category are visited in the current check-in's time slot (3-hour block x weekday/weekend). All counts come from the training file, with a training positive's own check-in left out; `test_leakage.py` checks both. The combination was chosen on validation only:
+
+| Extra features | Val Acc@1 | Val MRR | Val 4·Acc@1 + Acc@20 |
+|---|---|---|---|
+| none (tuned AuraPath v2) | 0.2412 | 0.3672 | 1.673 |
+| trans | 0.2527 | 0.3749 | 1.727 |
+| freq | 0.2466 | 0.3762 | 1.722 |
+| time | 0.2337 | 0.3608 | 1.631 |
+| freq + trans | 0.2641 | 0.3874 | 1.779 |
+| time + trans | 0.2480 | 0.3723 | 1.708 |
+| freq + time | 0.2566 | 0.3847 | 1.757 |
+| freq + time + trans | 0.2670 | 0.3911 | 1.793 |
+
+Chosen: freq + time + trans. On test it reaches Acc@1 0.267 and MRR 0.399, above the user-frequency baseline and above the published GETNext numbers on every metric, with seed standard deviations of 0.006 or less. Time slot alone hurts on validation but helps together with the other two.
+
+**Against GETNext** (published, not reproduced): the published numbers come from the authors' runs, and their test protocol cannot be checked from the released code, so a small protocol difference could move either side by a few points. The fair claim is that a two-tower ranker with simple count features is competitive with GETNext on this split, not that it beats a transformer in general. It still has no learned sequence model: the trajectory enters only through the current POI, its time, and visit counts.

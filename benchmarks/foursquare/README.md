@@ -74,6 +74,7 @@ python -m benchmarks.foursquare.run --seed 0                 # full model; also 
 python -m benchmarks.foursquare.run --seed 0 --variant no_cat
 python -m benchmarks.foursquare.run --seed 0 --variant no_dist
 python -m benchmarks.foursquare.run --seed 0 --cat_text
+python -m benchmarks.foursquare.run --seed 0 --extra trans,freq,time   # best: + transitions, visit counts, time slot
 python -m benchmarks.foursquare.report                       # -> results/foursquare_nyc.md
 ```
 
@@ -86,5 +87,7 @@ early after 11–33 epochs. The full data is used; nothing was subsampled.
 ## Differences from GETNext's setup
 
 - Ranks are expected ranks under ties (GETNext's `argsort` breaks ties by index); identical when scores are distinct.
-- AuraPath uses no time features and no trajectory order, by design (see `results/foursquare_nyc.md`).
+- The base AuraPath ranker uses no time features and no trajectory order. `--extra trans,freq,time` adds count
+  features for transitions from the current POI, the user's visit counts and the current time slot
+  (`model.SeqFeats`, chosen on validation; see `results/foursquare_nyc.md`). There is still no learned sequence model.
 - The user-frequency baseline (the user's own check-in counts) is added because 76.6% of test targets are revisits.

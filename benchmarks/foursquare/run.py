@@ -5,6 +5,7 @@ Train and evaluate the AuraPath v2 ranker on Foursquare NYC (GETNext splits and 
   python -m benchmarks.foursquare.run --seed 0 --variant no_cat      # ablation: no category embedding
   python -m benchmarks.foursquare.run --seed 0 --variant no_dist     # ablation: no distance features
   python -m benchmarks.foursquare.run --seed 0 --cat_text            # + frozen text embedding of category names
+  python -m benchmarks.foursquare.run --seed 0 --extra trans,freq,time   # + transition / visit-count / time features
   python -m benchmarks.foursquare.run --seed 0 --smoke               # 1-minute sanity run
 
 Training uses the training file only; the epoch is chosen on validation (GETNext's 4*Acc@1 + Acc@20);
@@ -23,15 +24,16 @@ import torch.nn.functional as F
 import yaml
 
 from . import baselines as B
-from .data import HERE, Index, TrainStream, eval_refs, eval_samples, load_splits, user_cat_counts
+from .data import HERE, Index, TrainStream, eval_refs, eval_samples, load_splits, time_slot, user_cat_counts
 from .metrics import monitor, ranks_of, summarize
-from .model import CatRanker, GeoNYC, cat_text_embeddings
+from .model import CatRanker, GeoNYC, SeqFeats, cat_text_embeddings
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--seed", type=int, required=True)
 ap.add_argument("--config", default=os.path.join(HERE, "config.yaml"))
 ap.add_argument("--variant", choices=["full", "no_cat", "no_dist"], default="full")
 ap.add_argument("--cat_text", action="store_true", help="add a frozen sentence-transformer embedding of the category name")
+ap.add_argument("--extra", default="", help="comma list of extra features: trans, freq, time (see model.SeqFeats)")
 ap.add_argument("--out", default=os.path.join("runs", "foursquare_nyc"))
 ap.add_argument("--smoke", action="store_true")
 ap.add_argument("--set", nargs="*", default=[], metavar="SECTION.KEY=VALUE", help="override config values (tuning)")
@@ -54,7 +56,8 @@ except TypeError:
     pass
 dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.makedirs(a.out, exist_ok=True)
-name = a.variant + ("_cattext" if a.cat_text else "") + ("_smoke" if a.smoke else "") + f"_seed{a.seed}" + \
+extra = sorted(x for x in a.extra.split(",") if x)
+name = a.variant + ("_cattext" if a.cat_text else "") + ("_x-" + "-".join(extra) if extra else "") + ("_smoke" if a.smoke else "") + f"_seed{a.seed}" + \
     (f"_{a.tag}" if a.tag else "")
 
 # ---------------- data (features from the training file only) ----------------
@@ -71,6 +74,13 @@ for s in S:                                                    # cheap leakage g
 geo = GeoNYC(ix, st, dev, M, mc["near_km"])
 C = torch.as_tensor(user_cat_counts(st, ix), device=dev)
 poi_cat = torch.as_tensor(ix.poi_cat, device=dev)
+sf = SeqFeats(extra, ix, st, dev) if extra else None
+EV = {}                                                        # per split: current slot, prefix visit counts
+for s in S:
+    pc = np.zeros((len(S[s]["u"]), ix.n_pois), dtype=np.float32)
+    for i, pre in enumerate(S[s]["prefix"]):
+        np.add.at(pc[i], pre, 1.0)
+    EV[s] = (torch.as_tensor(time_slot(S[s]["cur_tl"]), device=dev), torch.as_tensor(pc, device=dev))
 print(f"device={dev} pois={ix.n_pois:,} users={ix.n_users:,} cats={ix.n_cats} train positives={len(st.positives):,} "
       f"val={len(S['val']['u']):,} test={len(S['test']['u']):,}", flush=True)
 
@@ -106,7 +116,7 @@ if a.baselines_only:
 
 # ---------------- model ----------------
 text = cat_text_embeddings(ix.cat_names, mc["cat_text_model"], os.path.join(HERE, "external")) if a.cat_text else None
-model = CatRanker(ix.n_cats, mc["cat_dim"], mc["hidden"], mc["drop"], geo.n_feat, text=text,
+model = CatRanker(ix.n_cats, mc["cat_dim"], mc["hidden"], mc["drop"], geo.n_feat + (sf.n_feat if sf else 0), text=text,
                   use_cat=a.variant != "no_cat").to(dev)
 no_dist = a.variant == "no_dist"
 opt = torch.optim.AdamW(model.parameters(), lr=tc["lr"], weight_decay=tc["wd"])
@@ -145,7 +155,11 @@ def sample_negs(p):
 def model_scorer(u, ref, ctx=None):
     model.eval()
     cand = torch.arange(ix.n_pois, device=dev)[None].expand(len(u), -1)
-    return model.score(C[u], poi_cat[cand], geo.feats_ref(ref, cand, no_dist=no_dist))
+    g = geo.feats_ref(ref, cand, no_dist=no_dist)
+    if sf:
+        split, i, j = ctx
+        g = torch.cat([g, sf.feats(u, ref[:, 0], EV[split][0][i:j], cand, prefix_counts=EV[split][1][i:j])], dim=-1)
+    return model.score(C[u], poi_cat[cand], g)
 
 
 rows_all = torch.as_tensor(st.positives, device=dev)
@@ -163,6 +177,8 @@ for ep in range(1, epochs + 1):
         u, p = U_t[rows], P_t[rows]
         cand = torch.cat([p[:, None], sample_negs(p)], dim=1)
         g = geo.feats_ref(geo.hist[rows], cand, pos=p, no_dist=no_dist)          # only check-ins before the positive
+        if sf:                                                                   # current = previous check-in (same trajectory)
+            g = torch.cat([g, sf.feats(u, geo.hist[rows][:, 0], sf.slot[rows - 1], cand, pos=p, pos_slot=sf.slot[rows])], dim=-1)
         counts = C[u] - F.one_hot(poi_cat[p], ix.n_cats).float()                 # user taste without this check-in
         logits = model.score(counts, poi_cat[cand], g)
         dup = torch.cat([torch.zeros_like(cand[:, :1], dtype=torch.bool), cand[:, 1:] == p[:, None]], dim=1)
@@ -194,7 +210,7 @@ test_m = None if a.val_only else evaluate(model_scorer, "test")
 print("best val :", {k: round(v, 4) for k, v in val_m.items()}, f"monitor {monitor(val_m):.4f}")
 if test_m:
     print("TEST     :", {k: round(v, 4) for k, v in test_m.items()}, flush=True)
-json.dump({"variant": a.variant, "cat_text": a.cat_text, "seed": a.seed, "smoke": a.smoke, "config": cfg,
+json.dump({"variant": a.variant, "cat_text": a.cat_text, "extra": extra, "seed": a.seed, "smoke": a.smoke, "config": cfg,
            "best_epoch": max(hist, key=lambda h: monitor(h["val"]))["epoch"], "val": val_m, "test": test_m,
            "history": hist}, open(os.path.join(a.out, name + ".json"), "w"), indent=1)
 print("saved", os.path.join(a.out, name + ".json"))

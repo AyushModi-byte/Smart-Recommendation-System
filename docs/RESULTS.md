@@ -157,13 +157,17 @@ ablations and citations in [results/foursquare_nyc.md](../results/foursquare_nyc
 
 | Method | Acc@1 | Acc@5 | Acc@10 | Acc@20 | MRR |
 |---|---|---|---|---|---|
+| **AuraPath v2 + transitions, visit counts, time slot** | **0.267** | **0.558** | **0.677** | **0.754** | **0.399** |
 | AuraPath v2 | 0.223 | 0.551 | 0.656 | 0.723 | 0.364 |
 | User's own check-in counts | 0.234 | 0.525 | 0.648 | 0.731 | 0.367 |
 | Markov chain | 0.151 | 0.317 | 0.368 | 0.400 | 0.225 |
 | GETNext (published, not reproduced) | 0.2435 | 0.5089 | 0.6143 | 0.6880 | 0.3621 |
 
-77% of NYC test targets are revisits, so counting the user's own check-ins is already competitive. AuraPath
-matches that count and GETNext on MRR, is higher at Acc@5–20 and lower at Acc@1.
+77% of NYC test targets are revisits, so counting the user's own check-ins is already competitive, and the base
+ranker only ties it. Three count features chosen on validation (transitions from the current place, the user's
+visit counts, the current time slot) lift it above both the count and the published GETNext numbers on every
+metric (seed std ≤ 0.006). GETNext's test protocol cannot be checked from its code, so this is "competitive", not
+a proven win.
 
 ## Features that cannot be evaluated offline
 
