@@ -23,7 +23,9 @@ Accounts switch on only when both settings below are present at build time; othe
 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. **SQL Editor → New query**: paste [`supabase/schema.sql`](../supabase/schema.sql) and run it, then the same
-   with [`supabase/002_people.sql`](../supabase/002_people.sql). They create `profiles`, `place_actions`, `posts`
+   with [`supabase/002_people.sql`](../supabase/002_people.sql), then
+   [`supabase/003_grants.sql`](../supabase/003_grants.sql) (table privileges; without it the app shows
+   "permission denied for table profiles"). They create `profiles`, `place_actions`, `posts`
    and `tastes` with row-level security: each user reads and writes only their own data; posts, display names
    and shared tastes are public.
 3. **Authentication → URL Configuration**: Site URL = `https://recommendation-system-gray-seven.vercel.app`;
