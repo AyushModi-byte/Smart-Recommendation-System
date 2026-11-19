@@ -173,6 +173,22 @@ class Engine:
             c.update(extra)
         return c
 
+    # ---------- taste vector (for matching people) ----------
+    def taste(self, accepted):
+        """Unit vector of the user's taste: mean embedding of their liked places minus the mean over all places,
+        so that two users' cosine similarity measures shared taste rather than the common average. None if no likes."""
+        acc = [int(i) for i in accepted if 0 <= int(i) < self.n]
+        if not acc:
+            return None
+        if getattr(self, "_gmean", None) is None:                # chunked: a float32 copy of emb would not fit in memory
+            s = np.zeros(self.emb.shape[1], dtype=np.float64)
+            for i in range(0, self.n, 20000):
+                s += self.emb[i:i + 20000].astype(np.float64).sum(0)
+            self._gmean = (s / self.n).astype(np.float32)
+        v = self.emb[acc].astype(np.float32).mean(0) - self._gmean
+        nrm = float(np.linalg.norm(v))
+        return None if nrm < 1e-8 else [round(float(x), 4) for x in v / nrm]
+
     # ---------- live conditions ----------
     def conditions(self, lat, lon):
         """Current weather and local time at a point (Open-Meteo, no key), cached per ~10 km cell. None if offline."""

@@ -14,4 +14,10 @@ export const Search = (p) => <S {...p}><circle cx="11" cy="11" r="7" /><path d="
 export const Camera = (p) => <S {...p}><path d="M4 7h3l2-3h6l2 3h3v13H4z" /><circle cx="12" cy="13" r="3.5" /></S>;
 export const Calendar = (p) => <S {...p}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></S>;
 export const Close = X;
+export const Compass = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></S>;
+export const Users = (p) => <S {...p}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.8c1.7.8 2.8 2.5 3 5.2" /></S>;
+export const Chat = (p) => <S {...p}><path d="M4 5h16v11H9l-5 4z" /></S>;
+export const Menu = (p) => <S {...p}><path d="M4 7h16M4 12h16M4 17h16" /></S>;
+export const Logout = (p) => <S {...p}><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" /></S>;
+export const Edit = (p) => <S {...p}><path d="M4 20h4L19 9l-4-4L4 16z" /></S>;
 export const Target = (p) => <S {...p}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2" /><path d="M12 1v3M12 20v3M1 12h3M20 12h3" /></S>;

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MapView from "./MapView.jsx";
 import PlaceCard from "./PlaceCard.jsx";
-import { getMeta, getPlace, recommend, searchTowns, sendFeedback } from "./api.js";
+import { getMeta, getPlace, getTaste, recommend, searchTowns, sendFeedback } from "./api.js";
 import * as acct from "./account.js";
-import { Community, Onboarding, Profile, SignIn } from "./AccountViews.jsx";
-import { Bookmark, Close, Heart, Pin, Search, Target, Undo, X } from "./icons.jsx";
+import { Community, Login, NewPassword, Onboarding, People, PlaceList, Profile } from "./AccountViews.jsx";
+import Sidebar from "./Sidebar.jsx";
+import { Bookmark, Close, Heart, Menu, Pin, Search, Target, Undo, X } from "./icons.jsx";
 
 const STORE = "aurapath.v1";
+const GUEST = "aurapath.guest";
 const DEFAULT_AREA = { name: "London", lat: 51.5074, lon: -0.1278, radius: 15 };
 
 function load() {
@@ -55,21 +57,27 @@ export default function App() {
   const [waking, setWaking] = useState(false);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const [drawer, setDrawer] = useState(false);
   const [compose, setCompose] = useState(null);                       // card being posted about
   const narrow = useIsNarrow();
   const req = useRef(0);
   const [user, setUser] = useState(null);                              // Supabase user, when accounts are on
   const [profile, setProfile] = useState(null);
-  const [signIn, setSignIn] = useState(false);
+  const [authReady, setAuthReady] = useState(!acct.sb);
+  const [guest, setGuest] = useState(() => { try { return localStorage.getItem(GUEST) === "1"; } catch { return false; } });
+  const [recovery, setRecovery] = useState(false);
   const [onboard, setOnboard] = useState(false);
-  const [drawerTab, setDrawerTab] = useState("liked");
+  const [view, setView] = useState("discover");                       // discover | liked | saved | posts | people | community | profile
+  const [navOpen, setNavOpen] = useState(false);
+  const [myTaste, setMyTaste] = useState(null);
   const synced = useRef(null);                                        // user id whose data has been merged
 
   useEffect(() => {
     if (!acct.sb) return;
-    acct.sb.auth.getSession().then(({ data }) => setUser(data.session?.user || null));
-    const { data } = acct.sb.auth.onAuthStateChange((_e, s) => setUser(s?.user || null));
+    acct.sb.auth.getSession().then(({ data }) => { setUser(data.session?.user || null); setAuthReady(true); });
+    const { data } = acct.sb.auth.onAuthStateChange((ev, s) => {
+      setUser(s?.user || null);
+      if (ev === "PASSWORD_RECOVERY") setRecovery(true);
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 
@@ -170,6 +178,30 @@ export default function App() {
   };
   const dropAction = (card, action) => { if (online) acct.deleteAction(card.id, action).catch(() => {}); };
 
+  useEffect(() => { try { localStorage.setItem(GUEST, guest ? "1" : "0"); } catch { /* ignore */ } }, [guest]);
+
+  // signed in: keep the shared taste row (for "people like you") in step with the likes, a moment after they change
+  useEffect(() => {
+    if (!online || accepted.length < 3) { setMyTaste(null); return; }
+    const t = setTimeout(async () => {
+      try {
+        const taste = await getTaste(accepted.slice(-200));
+        setMyTaste(taste);
+        if (!taste) return;
+        if (profile.discoverable === false) { await acct.deleteTaste(user.id); return; }
+        const counts = {};
+        for (const c of liked) if (c.category) counts[c.category] = (counts[c.category] || 0) + 1;
+        await acct.putTaste({
+          user_id: user.id, taste, favorites: liked.slice(0, 8).map(acct.slimCard), liked_count: liked.length,
+          top_categories: Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map((x) => x[0]),
+          updated_at: new Date().toISOString(),
+        });
+      } catch { /* the people tab says when it cannot load */ }
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online, accepted, profile?.discoverable]);
+
   useEffect(() => {
     if (meta) refill(snap.current, null);
   }, [meta, area, filters, refill]);
@@ -225,7 +257,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (compose || signIn || onboard || e.target.closest("input, textarea")) return;
+      if (compose || onboard || recovery || e.target.closest("input, textarea, select")) return;
       if (e.key === "ArrowLeft" || e.key === "x") act("reject");
       else if (e.key === "ArrowRight" || e.key === "l") act("accept");
       else if (e.key === "s") act("save");
@@ -233,85 +265,116 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [act, undo, compose, signIn, onboard]);
+  }, [act, undo, compose, onboard, recovery]);
 
   const setAreaTo = (a) => { setQueue([]); setArea({ ...area, ...a }); };
   const startOver = () => {
     if (!window.confirm("Forget your likes, skips and saved places on this device?")) return;
-    setAccepted([]); setRejected([]); setSeen([]); setLiked([]); setSaved([]); setPosts([]); setHistory([]); setQueue([]);
-    setDrawer(false);
+    clearLocal();
     refill({ ...snap.current, accepted: [], rejected: [], seen: [] }, null);
   };
+  const clearLocal = () => {
+    setAccepted([]); setRejected([]); setSeen([]); setLiked([]); setSaved([]); setPosts([]); setHistory([]); setQueue([]);
+  };
+  // signing out also clears this device, so the next person to sign in here does not inherit these likes
+  const doSignOut = async () => { await acct.signOut(); clearLocal(); setGuest(false); setView("discover"); };
+  const showCard = (c) => { if (narrow) setView("discover"); setQueue((q) => [c, ...q.filter((x) => x.id !== c.id)]); };
+
+  if (acct.accountsEnabled && !authReady) {
+    return <div className="splash"><span className="logo big"><Pin size={26} /></span></div>;
+  }
+  if (acct.accountsEnabled && !user && !guest) return <Login onGuest={() => setGuest(true)} />;
+
+  const sheetOpen = view !== "discover";
+  const TITLES = { liked: "Liked places", saved: "Saved for later", posts: "My posts", people: "People like you",
+                   community: "Recent posts", profile: "Your profile" };
 
   return (
     <div className="app">
-      <MapView area={area} current={current} upcoming={queue.slice(1)} liked={liked}
-               onSearchArea={(lat, lon) => setAreaTo({ name: "This area", lat, lon })} padRight={narrow ? 0 : 460} />
+      <Sidebar view={view} setView={setView} counts={{ liked: liked.length, saved: saved.length, posts: posts.length }}
+               user={user} profile={profile} open={navOpen} onClose={() => setNavOpen(false)}
+               onSignIn={() => setGuest(false)} onSignOut={doSignOut} onEdit={() => setOnboard(true)} onStartOver={startOver} />
 
-      <header className="topbar">
-        <div className="brand">
-          <span className="logo"><Pin size={18} /></span>
-          <span className="brand-name">AuraPath</span>
-        </div>
-        <TownSearch area={area} towns={meta?.towns || []} onPick={setAreaTo} />
-        <div className="chips" role="toolbar" aria-label="Filters">
-          <button className={"chip" + (filters.category === null && !filters.hidden ? " on" : "")}
-                  onClick={() => setFilters({ ...filters, category: null, hidden: false })}>All</button>
-          {(meta?.categories || []).map((c) => (
-            <button key={c.id} className={"chip" + (filters.category === c.id ? " on" : "")}
-                    onClick={() => setFilters({ ...filters, category: filters.category === c.id ? null : c.id })}>{c.name}</button>
-          ))}
-          <button className={"chip" + (filters.hidden ? " on" : "")}
-                  onClick={() => setFilters({ ...filters, hidden: !filters.hidden })}>Hidden gems</button>
-          <button className={"chip" + (filters.quiet ? " on" : "")} title="Favour places that are usually quiet at this time of day"
-                  onClick={() => setFilters({ ...filters, quiet: !filters.quiet })}>Quieter now</button>
-          <button className={"chip" + (filters.weather ? " on" : "")} title="Reorder for rain, cold or heat in this area right now"
-                  onClick={() => setFilters({ ...filters, weather: !filters.weather })}>Weather-aware</button>
-          <select className={"chip select" + (filters.mood ? " on" : "")} value={filters.mood || ""} aria-label="Mood"
-                  onChange={(e) => setFilters({ ...filters, mood: e.target.value || null })}>
-            <option value="">Any mood</option>
-            {(meta?.moods || []).map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
-        {acct.accountsEnabled && (user
-          ? <button className="avatar" onClick={() => { setDrawerTab("profile"); setDrawer(true); }} title="Your profile"
-                    aria-label="Your profile">{(profile?.name || user.email || "?").slice(0, 1).toUpperCase()}</button>
-          : <button className="btn small" onClick={() => setSignIn(true)}>Sign in</button>)}
-        <button className="counter" onClick={() => { setDrawerTab("liked"); setDrawer(true); }}>
-          <span><Bookmark size={14} /> {saved.length}</span>
-          <span><Heart size={14} /> {liked.length}</span>
-        </button>
-      </header>
+      <main className="stage">
+        <MapView area={area} current={current} upcoming={queue.slice(1)} liked={liked}
+                 onSearchArea={(lat, lon) => setAreaTo({ name: "This area", lat, lon })}
+                 padRight={narrow ? 0 : 460} padLeft={!narrow && sheetOpen ? 400 : 0} />
 
-      <aside className="panel">
-        <LiveLine live={live} />
-        {current ? (
-          <PlaceCard card={current} expanded={expanded} onToggle={() => setExpanded((x) => !x)} />
-        ) : (
-          <div className="card placeholder">
-            {error ? <p>{error}</p> : waking ? <p>Waking the server up. Free hosting sleeps when idle; this can take up to a minute.</p>
-              : <p>{loading ? "Finding places…" : "Pick a town to start."}</p>}
+        <header className="topbar">
+          <button className="icon-btn only-narrow" onClick={() => setNavOpen(true)} aria-label="Open menu"><Menu size={20} /></button>
+          <TownSearch area={area} towns={meta?.towns || []} onPick={setAreaTo} />
+          <div className="chips" role="toolbar" aria-label="Filters">
+            <button className={"chip" + (filters.category === null && !filters.hidden ? " on" : "")}
+                    onClick={() => setFilters({ ...filters, category: null, hidden: false })}>All</button>
+            {(meta?.categories || []).map((c) => (
+              <button key={c.id} className={"chip" + (filters.category === c.id ? " on" : "")}
+                      onClick={() => setFilters({ ...filters, category: filters.category === c.id ? null : c.id })}>{c.name}</button>
+            ))}
+            <button className={"chip" + (filters.hidden ? " on" : "")}
+                    onClick={() => setFilters({ ...filters, hidden: !filters.hidden })}>Hidden gems</button>
+            <button className={"chip" + (filters.quiet ? " on" : "")} title="Favour places that are usually quiet at this time of day"
+                    onClick={() => setFilters({ ...filters, quiet: !filters.quiet })}>Quieter now</button>
+            <button className={"chip" + (filters.weather ? " on" : "")} title="Reorder for rain, cold or heat in this area right now"
+                    onClick={() => setFilters({ ...filters, weather: !filters.weather })}>Weather-aware</button>
+            <select className={"chip select" + (filters.mood ? " on" : "")} value={filters.mood || ""} aria-label="Mood"
+                    onChange={(e) => setFilters({ ...filters, mood: e.target.value || null })}>
+              <option value="">Any mood</option>
+              {(meta?.moods || []).map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
           </div>
-        )}
-        {current && error && <div className="toast">{error}</div>}
-        <div className="actions">
-          <button className="act small" onClick={undo} disabled={!history.length} aria-label="Undo" title="Undo (U)"><Undo size={18} /></button>
-          <button className="act" onClick={() => act("reject")} disabled={!current} aria-label="Skip" title="Skip (←)"><X size={22} /></button>
-          <button className="act gold" onClick={() => act("save")} disabled={!current} aria-label="Save for later" title="Save (S)"><Bookmark size={20} /></button>
-          <button className="act love" onClick={() => act("accept")} disabled={!current} aria-label="I'd go here" title="Like (→)"><Heart size={26} /></button>
-        </div>
-        <div className="hint">{accepted.length ? `Learning from ${accepted.length} liked ${accepted.length === 1 ? "place" : "places"}` : "Like a few places and the feed adapts to your taste"}</div>
-      </aside>
+        </header>
 
-      {drawer && (
-        <Drawer liked={liked} saved={saved} posts={posts} onClose={() => setDrawer(false)} onStartOver={startOver}
-                tab={drawerTab} setTab={setDrawerTab} user={user} profile={profile}
-                onSignOut={() => { acct.signOut(); setDrawer(false); }}
-                onMood={(m) => { setDrawer(false); setFilters({ ...filters, mood: m }); }}
-                onHome={() => { setDrawer(false); if (profile?.home) setAreaTo(profile.home); }}
-                onEditProfile={() => { setDrawer(false); setOnboard(true); }}
-                onShow={(c) => { setDrawer(false); setQueue((q) => [c, ...q.filter((x) => x.id !== c.id)]); }} />
-      )}
+        {sheetOpen && (
+          <section className="sheet" aria-label={TITLES[view]}>
+            <div className="sheet-head">
+              <h2>{TITLES[view]}</h2>
+              <button className="icon-btn" onClick={() => setView("discover")} aria-label="Close"><Close size={18} /></button>
+            </div>
+            <div className="sheet-body">
+              {view === "liked" && <PlaceList items={liked} onShow={showCard} empty="Places you like show up here. Tap the heart on a card." />}
+              {view === "saved" && <PlaceList items={saved} onShow={showCard} empty="Save places for later with the bookmark button." />}
+              {view === "posts" && (posts.length ? posts.map((p) => (
+                <div key={p.id} className="post">
+                  <div className="post-place">{p.place.name} <small>{p.place.town}</small></div>
+                  <p>{p.text}</p>
+                  <small>{new Date(p.time).toLocaleString()}</small>
+                </div>
+              )) : <p className="muted">When you like a place you can post about it.{user ? "" : acct.accountsEnabled ? " Sign in to share posts." : " Posts stay on this device."}</p>)}
+              {view === "community" && <Community />}
+              {view === "people" && (user
+                ? <People user={user} taste={myTaste} likedCount={accepted.length} likedIds={new Set(accepted)} onShow={showCard} />
+                : <p className="muted">Sign in to see people whose taste matches yours.</p>)}
+              {view === "profile" && user && (
+                <Profile user={user} profile={profile} liked={liked} posts={posts}
+                         onMood={(m) => { setView("discover"); setFilters({ ...filters, mood: m }); }}
+                         onHome={() => { setView("discover"); if (profile?.home) setAreaTo(profile.home); }}
+                         onEdit={() => setOnboard(true)} />
+              )}
+            </div>
+          </section>
+        )}
+
+        <aside className={"panel" + (narrow && sheetOpen ? " hidden" : "")}>
+          <LiveLine live={live} />
+          {current ? (
+            <PlaceCard card={current} expanded={expanded} onToggle={() => setExpanded((x) => !x)} />
+          ) : (
+            <div className="card placeholder">
+              {error ? <p>{error}</p> : waking ? <p>Waking the server up. Free hosting sleeps when idle; this can take up to a minute.</p>
+                : <p>{loading ? "Finding places…" : "Pick a town to start."}</p>}
+            </div>
+          )}
+          {current && error && <div className="toast">{error}</div>}
+          <div className="actions">
+            <button className="act small" onClick={undo} disabled={!history.length} aria-label="Undo" title="Undo (U)"><Undo size={18} /></button>
+            <button className="act" onClick={() => act("reject")} disabled={!current} aria-label="Skip" title="Skip (←)"><X size={22} /></button>
+            <button className="act gold" onClick={() => act("save")} disabled={!current} aria-label="Save for later" title="Save (S)"><Bookmark size={20} /></button>
+            <button className="act love" onClick={() => act("accept")} disabled={!current} aria-label="I'd go here" title="Like (→)"><Heart size={26} /></button>
+          </div>
+          <div className="hint">{accepted.length ? `Learning from ${accepted.length} liked ${accepted.length === 1 ? "place" : "places"}` : "Like a few places and the feed adapts to your taste"}</div>
+        </aside>
+      </main>
+
       {compose && (
         <Compose card={compose} onClose={() => setCompose(null)}
                  onPost={(text) => {
@@ -326,11 +389,11 @@ export default function App() {
                    }
                  }} />
       )}
-      {signIn && <SignIn onClose={() => setSignIn(false)} />}
       {onboard && user && (
         <Onboarding profile={profile} area={area} moods={meta?.moods || []} onClose={profile ? () => setOnboard(false) : null}
                     onSave={async (p) => { const row = await acct.saveProfile(user.id, p); setProfile(row); setOnboard(false); }} />
       )}
+      {recovery && <NewPassword onDone={() => setRecovery(false)} />}
     </div>
   );
 }
@@ -383,46 +446,6 @@ function TownSearch({ area, towns, onPick }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function Drawer({ liked, saved, posts, onClose, onShow, onStartOver, tab, setTab, user, profile, onSignOut, onMood, onHome, onEditProfile }) {
-  const items = tab === "liked" ? liked : saved;
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Your places">
-        <div className="drawer-head">
-          <div className="tabs">
-            <button className={tab === "liked" ? "on" : ""} onClick={() => setTab("liked")}>Liked {liked.length}</button>
-            <button className={tab === "saved" ? "on" : ""} onClick={() => setTab("saved")}>Saved {saved.length}</button>
-            <button className={tab === "posts" ? "on" : ""} onClick={() => setTab("posts")}>Posts {posts.length}</button>
-            {acct.accountsEnabled && <button className={tab === "community" ? "on" : ""} onClick={() => setTab("community")}>Community</button>}
-            {user && <button className={tab === "profile" ? "on" : ""} onClick={() => setTab("profile")}>Profile</button>}
-          </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Close"><Close size={18} /></button>
-        </div>
-        <div className="drawer-body">
-          {tab === "profile" && user ? (
-            <Profile user={user} profile={profile} liked={liked} posts={posts} onSignOut={onSignOut} onMood={onMood}
-                     onHome={onHome} onEdit={onEditProfile} />
-          ) : tab === "community" ? <Community /> : tab === "posts" ? (
-            posts.length ? posts.map((p) => (
-              <div key={p.id} className="post">
-                <div className="post-place">{p.place.name} <small>{p.place.town}</small></div>
-                <p>{p.text}</p>
-                <small>{new Date(p.time).toLocaleString()}</small>
-              </div>
-            )) : <p className="muted">When you like a place you can post about it.{user ? "" : acct.accountsEnabled ? " Sign in to share posts." : " Posts stay on this device."}</p>
-          ) : items.length ? items.map((c) => (
-            <button key={c.id} className="mini" onClick={() => onShow(c)}>
-              <img src={c.photo} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
-              <span><b>{c.name}</b><small>{c.town}, {c.country} · {c.category}</small></span>
-            </button>
-          )) : <p className="muted">Nothing here yet.</p>}
-        </div>
-        <button className="link danger" onClick={onStartOver}>Start over</button>
-      </div>
     </div>
   );
 }

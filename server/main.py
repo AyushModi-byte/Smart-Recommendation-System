@@ -56,6 +56,15 @@ def meta():
             "towns": ENGINE.top_towns(12), "n_places": ENGINE.n, "run": ENGINE.meta["run"]}
 
 
+class TasteIn(BaseModel):
+    accepted: List[int] = Field(default_factory=list, max_length=500)
+
+
+@app.post("/api/taste")
+def taste(body: TasteIn):
+    return {"taste": ENGINE.taste(body.accepted)}
+
+
 @app.get("/api/conditions")
 def conditions(lat: float, lon: float):
     return ENGINE.conditions(lat, lon) or {}

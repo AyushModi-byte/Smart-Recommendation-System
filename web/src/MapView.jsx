@@ -21,7 +21,7 @@ const fc = (cards) => ({
                                 geometry: { type: "Point", coordinates: [c.lon, c.lat] } })),
 });
 
-export default function MapView({ area, current, upcoming, liked, onSearchArea, padRight }) {
+export default function MapView({ area, current, upcoming, liked, onSearchArea, padRight, padLeft = 0 }) {
   const box = useRef(null);
   const map = useRef(null);
   const pin = useRef(null);
@@ -74,9 +74,9 @@ export default function MapView({ area, current, upcoming, liked, onSearchArea, 
     if (!ready || !current) { pin.current?.remove(); return; }
     pin.current.setLngLat([current.lon, current.lat]).addTo(map.current);
     map.current.flyTo({ center: [current.lon, current.lat], zoom: Math.max(map.current.getZoom(), 13.5),
-                        padding: { right: padRight, top: 80, bottom: padRight ? 40 : 360, left: 40 }, duration: 1100, essential: true });
+                        padding: { right: padRight, top: 80, bottom: padRight ? 40 : 360, left: 40 + padLeft }, duration: 1100, essential: true });
     setMoved(false);
-  }, [ready, current, padRight]);
+  }, [ready, current, padRight, padLeft]);
 
   return (
     <div className="map-wrap">

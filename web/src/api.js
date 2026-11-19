@@ -22,6 +22,7 @@ async function call(path, opts = {}, onSlow) {
 export const getMeta = (onSlow) => call("/api/meta", {}, onSlow);
 export const searchTowns = (q) => call("/api/towns?q=" + encodeURIComponent(q));
 export const getPlace = (id) => call("/api/place/" + id);
+export const getTaste = (accepted) => call("/api/taste", { method: "POST", body: JSON.stringify({ accepted }) }).then((r) => r.taste);
 export const recommend =(body, onSlow) => call("/api/recommend", { method: "POST", body: JSON.stringify(body) }, onSlow);
 
 export function sendFeedback(session, place, action) {
