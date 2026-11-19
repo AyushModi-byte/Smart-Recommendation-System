@@ -16,6 +16,8 @@ from pydantic import BaseModel, Field
 from .engine import CAT_SHORT, Engine
 
 ENGINE = Engine()
+# warm the taste mean in the background, so the first "people like you" request after a restart is not slow
+threading.Thread(target=lambda: ENGINE.taste([0]), daemon=True).start()
 app = FastAPI(title="AuraPath swipe API", version="0.1")
 app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",")],
                    allow_methods=["GET", "POST"], allow_headers=["*"])

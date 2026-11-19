@@ -1,6 +1,8 @@
 // Backend: VITE_API_URL at build time. A full URL (the Render service), or "same-origin" when the API serves the
-// built page itself (laptop + Cloudflare Tunnel). Unset = local development against localhost:8000.
-const RAW = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// built page itself (laptop + Cloudflare Tunnel). Unset: the Render service in a production build, localhost:8000
+// in development (a production build must never fall back to localhost: every visitor's requests would fail).
+const RAW = import.meta.env.VITE_API_URL
+  || (import.meta.env.PROD ? "https://aurapath-api-vahf.onrender.com" : "http://localhost:8000");
 export const API = RAW === "same-origin" ? "" : RAW.replace(/\/$/, "");
 
 async function call(path, opts = {}, onSlow) {

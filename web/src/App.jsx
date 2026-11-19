@@ -69,6 +69,7 @@ export default function App() {
   const [view, setView] = useState("discover");                       // discover | liked | saved | posts | people | community | profile
   const [navOpen, setNavOpen] = useState(false);
   const [myTaste, setMyTaste] = useState(null);
+  const [tasteErr, setTasteErr] = useState("");
   const synced = useRef(null);                                        // user id whose data has been merged
 
   useEffect(() => {
@@ -182,12 +183,15 @@ export default function App() {
 
   // signed in: keep the shared taste row (for "people like you") in step with the likes, a moment after they change
   useEffect(() => {
-    if (!online || accepted.length < 3) { setMyTaste(null); return; }
+    if (!online || accepted.length < 3) { setMyTaste(null); setTasteErr(""); return; }
     const t = setTimeout(async () => {
+      let step = "work out your taste";
       try {
         const taste = await getTaste(accepted.slice(-200));
+        setTasteErr(taste ? "" : "Could not work out your taste from these places.");
         setMyTaste(taste);
         if (!taste) return;
+        step = "share your taste";
         if (profile.discoverable === false) { await acct.deleteTaste(user.id); return; }
         const counts = {};
         for (const c of liked) if (c.category) counts[c.category] = (counts[c.category] || 0) + 1;
@@ -196,7 +200,7 @@ export default function App() {
           top_categories: Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map((x) => x[0]),
           updated_at: new Date().toISOString(),
         });
-      } catch { /* the people tab says when it cannot load */ }
+      } catch (e) { setTasteErr(`Could not ${step}: ${e.message || e}`); }
     }, 1500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -342,7 +346,7 @@ export default function App() {
               )) : <p className="muted">When you like a place you can post about it.{user ? "" : acct.accountsEnabled ? " Sign in to share posts." : " Posts stay on this device."}</p>)}
               {view === "community" && <Community />}
               {view === "people" && (user
-                ? <People user={user} taste={myTaste} likedCount={accepted.length} likedIds={new Set(accepted)} onShow={showCard} />
+                ? <People user={user} taste={myTaste} tasteErr={tasteErr}likedCount={accepted.length} likedIds={new Set(accepted)} onShow={showCard} />
                 : <p className="muted">Sign in to see people whose taste matches yours.</p>)}
               {view === "profile" && user && (
                 <Profile user={user} profile={profile} liked={liked} posts={posts}

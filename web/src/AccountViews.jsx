@@ -208,17 +208,19 @@ export function Community() {
   ));
 }
 
-export function People({ user, taste, likedCount, likedIds, onShow }) {
+export function People({ user, taste, tasteErr, likedCount, likedIds, onShow }) {
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState("");
   useEffect(() => {
     if (!taste) return;
-    setRows(null);
-    acct.similarUsers(user.id, taste).then(setRows).catch((e) => setErr(e.message));
+    setRows(null); setErr("");
+    acct.similarUsers(user.id, taste).then(setRows).catch((e) => setErr(e.message || String(e)));
   }, [user.id, taste]);
   if (likedCount < 3) return <p className="muted">Like at least three places, then we’ll find people whose taste matches yours.</p>;
-  if (err) return <p className="muted">Could not load people. {err}</p>;
-  if (!taste || !rows) return <p className="muted">Finding people like you…</p>;
+  if (tasteErr) return <p className="muted">{tasteErr}</p>;
+  if (err) return <p className="muted">Could not load people: {err}</p>;
+  if (!taste) return <p className="muted">Working out your taste… (the server can take up to a minute to wake up)</p>;
+  if (!rows) return <p className="muted">Finding people like you…</p>;
   if (!rows.length) return <p className="muted">No one else has shared their taste yet. Check back later.</p>;
   return (
     <>
