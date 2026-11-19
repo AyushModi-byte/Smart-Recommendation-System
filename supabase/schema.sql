@@ -33,6 +33,18 @@ alter table public.profiles      enable row level security;
 alter table public.place_actions enable row level security;
 alter table public.posts         enable row level security;
 
+-- Safe to run again: drop the policies before recreating them.
+drop policy if exists "profiles are public" on public.profiles;
+drop policy if exists "own profile insert"  on public.profiles;
+drop policy if exists "own profile update"  on public.profiles;
+drop policy if exists "own actions read"    on public.place_actions;
+drop policy if exists "own actions insert"  on public.place_actions;
+drop policy if exists "own actions update"  on public.place_actions;
+drop policy if exists "own actions delete"  on public.place_actions;
+drop policy if exists "posts are public"    on public.posts;
+drop policy if exists "own posts insert"    on public.posts;
+drop policy if exists "own posts delete"    on public.posts;
+
 create policy "profiles are public"       on public.profiles for select using (true);
 create policy "own profile insert"        on public.profiles for insert with check (auth.uid() = id);
 create policy "own profile update"        on public.profiles for update using (auth.uid() = id);
