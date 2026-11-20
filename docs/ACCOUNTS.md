@@ -10,6 +10,22 @@ posts, People like you and Recent posts, with the signed-in user's profile and m
   similarity. Each match shows their recent likes you have not seen; tap one to open it. Only users who allow
   it in their profile are listed (`tastes` table; switching it off deletes the row).
 
+  **Does the matching work?** Tested on 3,000 real Flickr users with at least 20 places each, using training
+  visits only (`training/19_people_match.py`, `runs/people_match/results.json`). Each user's places were split
+  at random into two halves, and the question was whether one half finds the same person among 3,000 others:
+
+  | Test | Taste matching | Random |
+  |---|---|---|
+  | Same person in the top 10 (of 3,000) | 25.6% | 0.3% |
+  | Same person ranked 1st, among people in the same city (median 44) | 35.6% | 2.7% |
+  | Same person in the top 10, with only 3 / 5 / 10 likes | 6.4% / 9.9% / 15.1% | 0.3% |
+  | Top-5 matches share the user's main scenery type | 79.8% | 33.7% |
+
+  Location alone finds the same person about as well across the world (32.8% in the top 10), since people
+  photograph where they live; the same-city row shows that taste separates people who photograph the same
+  city, where location cannot help. With three likes the matches are rough (19× random); they sharpen as likes
+  grow.
+
 - likes, saves and skips sync to their account, so the feed follows them across devices (anything liked before
   signing in is merged in on first sign-in);
 - a first-time profile asks for a name, a home area (the feed starts there) and moods they enjoy;

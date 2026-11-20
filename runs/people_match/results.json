@@ -1,0 +1,69 @@
+{
+  "users": 3000,
+  "min_places": 20,
+  "places_per_user_median": 40.0,
+  "self_retrieval_taste": {
+    "recall@1": 0.09466666666666666,
+    "recall@10": 0.256,
+    "median_rank": 79.0,
+    "candidates": 3000,
+    "random_recall@10": 0.0033333333333333335,
+    "random_median_rank": 1500.5
+  },
+  "self_retrieval_location_only": {
+    "recall@1": 0.103,
+    "recall@10": 0.32766666666666666,
+    "median_rank": 31.0,
+    "candidates": 3000,
+    "random_recall@10": 0.0033333333333333335,
+    "random_median_rank": 1500.5
+  },
+  "same_city_taste": {
+    "users_with_20+_neighbours": 278,
+    "recall@1": 0.35611510791366907,
+    "recall@10": 0.7697841726618705,
+    "random_recall@1": 0.026780484197974942,
+    "random_recall@10": 0.2678048419797494,
+    "median_candidates": 44.0,
+    "median_rank_percentile": 0.07467144563918757
+  },
+  "few_likes": {
+    "3": {
+      "recall@1": 0.016,
+      "recall@10": 0.06366666666666666,
+      "median_rank": 386.5,
+      "candidates": 3000,
+      "random_recall@10": 0.0033333333333333335,
+      "random_median_rank": 1500.5
+    },
+    "5": {
+      "recall@1": 0.025666666666666667,
+      "recall@10": 0.09866666666666667,
+      "median_rank": 302.0,
+      "candidates": 3000,
+      "random_recall@10": 0.0033333333333333335,
+      "random_median_rank": 1500.5
+    },
+    "10": {
+      "recall@1": 0.038,
+      "recall@10": 0.15133333333333332,
+      "median_rank": 168.0,
+      "candidates": 3000,
+      "random_recall@10": 0.0033333333333333335,
+      "random_median_rank": 1500.5
+    }
+  },
+  "scenery_agreement_top5": {
+    "same_main_scenery": 0.7981333333333334,
+    "random_pairs": 0.3369515555555555,
+    "main_scenery_shares": [
+      0.044,
+      0.431,
+      0.029,
+      0.063,
+      0.376,
+      0.058
+    ]
+  },
+  "seconds": 6.8
+}

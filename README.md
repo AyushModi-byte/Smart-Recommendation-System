@@ -23,7 +23,7 @@ load can take up to a minute)
 | Swipe app (`server/`, `web/`) | **Live.** Map plus one recommended place at a time; learns from likes. API on Render, web app on Vercel. |
 | Gradio demo (`app/`) | Earlier demo with mood, live weather and crowd filters; runs locally ([docs/DEPLOY.md](docs/DEPLOY.md)). |
 | Public benchmark (`benchmarks/`) | Foursquare NYC on GETNext's split: above the published GETNext numbers with three count features. |
-| Accounts | Built (Supabase, optional): sign-in by email link, profiles, synced likes, shared posts. Needs a Supabase project to switch on ([docs/ACCOUNTS.md](docs/ACCOUNTS.md)). |
+| Accounts | **Live** (Supabase): login page, profiles, synced likes, shared posts, *People like you* taste matching ([docs/ACCOUNTS.md](docs/ACCOUNTS.md)). |
 | Still to do | See [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md). |
 
 ## Results
@@ -147,6 +147,21 @@ The data in `brain/` is not distributed with the repository. See
 
 **Live:** https://recommendation-system-gray-seven.vercel.app
 
+### Try it (2 minutes)
+
+1. **Open the link.** The free server sleeps when idle, so the first cards can take up to a minute.
+2. **Sign in or skip.** Create an account with email and password, or click *Continue without an account*
+   (likes then stay in this browser).
+3. **Pick an area.** Search a town (London, Paris, New York, Tokyo…) and set the radius; optionally a
+   scenery type, a mood, *Hidden gems* or *Quieter now*. The panel shows the current weather there.
+4. **Swipe.** ♥ like, ✕ skip, bookmark to save for later, undo to take one back. After three or four likes the
+   cards follow your taste; the hint under the card says how many likes it is learning from.
+5. **Open the sidebar.** *Liked places* and *Saved for later* list your places; tap one to fly to it.
+   Signed in: *People like you* ranks other users by how close their taste is to yours (after 3 likes), with
+   their recent likes you have not seen; *Recent posts* is everyone's posts about places.
+6. **Your profile.** The account button at the bottom of the sidebar: view or edit your profile (name, home
+   area, moods, whether others can find you by taste), start over, sign out.
+
 A map with one recommended place at a time: like it (and post about it), skip it or save it, and the next
 cards adapt. Pick any of 3,464 towns, an area of 5–60 km, a scenery type, a mood or "hidden gems".
 
@@ -161,9 +176,11 @@ cards adapt. Pick any of 3,464 towns, an area of 5–60 km, a scenery type, a mo
   backup serves the whole app from one command.
 - **Live conditions.** Current weather for the area is shown on the panel; in rain, cold or heat, places people
   photograph in those conditions come first. "Quieter now" demotes places busy at this time of day and week.
-- **Accounts (optional).** With a Supabase project connected, sign-in by email link, a profile with a home area
-  and moods, likes synced across devices, and a shared Community feed of posts. Without one, everything stays in
-  the browser. Setup: [docs/ACCOUNTS.md](docs/ACCOUNTS.md).
+- **Accounts (optional).** With a Supabase project connected: a login page (email and password, or an email
+  link), a profile with a home area and moods, likes synced across devices, a shared feed of posts, and
+  *People like you*. On 3,000 real Flickr users, half of a user's places find the other half in the top 10 of
+  3,000 people 25.6% of the time (random 0.3%), and within one city the right person comes first 35.6% of the
+  time (random 2.7%). Without accounts, everything stays in the browser. Setup: [docs/ACCOUNTS.md](docs/ACCOUNTS.md).
 
 Setup, results and deployment: [docs/SWIPE_APP.md](docs/SWIPE_APP.md).
 
